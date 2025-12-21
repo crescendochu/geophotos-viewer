@@ -1,0 +1,598 @@
+/* ========================================
+   CSS Variables & Theme
+   ======================================== */
+:root {
+  --bg-primary: #0a0a0b;
+  --bg-secondary: #141416;
+  --bg-card: #1a1a1e;
+  --bg-card-hover: #222228;
+  
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-muted: #6e6e73;
+  
+  --accent-primary: #e85d4c;
+  --accent-secondary: #c94a3a;
+  --accent-glow: rgba(232, 93, 76, 0.3);
+  
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  
+  --font-display: 'Crimson Pro', Georgia, serif;
+  --font-body: 'Zen Kaku Gothic New', -apple-system, BlinkMacSystemFont, sans-serif;
+  
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 8px 40px rgba(0, 0, 0, 0.6);
+  
+  --transition-fast: 150ms ease;
+  --transition-medium: 250ms ease;
+  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ========================================
+   Reset & Base
+   ======================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ========================================
+   Home Page Layout
+   ======================================== */
+.page-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(232, 93, 76, 0.08), transparent),
+    var(--bg-primary);
+}
+
+.header {
+  padding: 4rem 2rem 3rem;
+  text-align: center;
+}
+
+.header-content {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.title-en {
+  font-family: var(--font-display);
+  font-size: 3.5rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.title-ja {
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: 0.3em;
+}
+
+.subtitle {
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* ========================================
+   Neighborhoods Grid
+   ======================================== */
+.neighborhoods-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ========================================
+   Neighborhood Card
+   ======================================== */
+.neighborhood-card {
+  position: relative;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: 
+    transform var(--transition-slow),
+    box-shadow var(--transition-slow),
+    border-color var(--transition-medium);
+}
+
+.neighborhood-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+  border-color: var(--border-hover);
+}
+
+.neighborhood-card:hover .card-map {
+  filter: brightness(1.1);
+}
+
+.neighborhood-card:hover .card-overlay {
+  opacity: 0.3;
+}
+
+.card-map {
+  width: 100%;
+  height: 200px;
+  transition: filter var(--transition-medium);
+}
+
+.card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.4) 100%);
+  pointer-events: none;
+  opacity: 0.5;
+  transition: opacity var(--transition-medium);
+}
+
+.card-content {
+  padding: 1.5rem;
+}
+
+.card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.card-name {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.card-name-ja {
+  font-size: 1rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.card-description {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.card-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.card-meta-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.card-arrow {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: 
+    opacity var(--transition-medium),
+    transform var(--transition-medium);
+}
+
+.neighborhood-card:hover .card-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.card-arrow svg {
+  width: 16px;
+  height: 16px;
+  color: white;
+}
+
+/* ========================================
+   Footer
+   ======================================== */
+.footer {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ========================================
+   Viewer Page
+   ======================================== */
+.viewer-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.7) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.viewer-header > * {
+  pointer-events: auto;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  text-decoration: none;
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.back-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.viewer-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.viewer-title h1 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+.viewer-title span {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.viewer-info {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* ========================================
+   Panorama Viewer
+   ======================================== */
+.panorama-container {
+  flex: 1;
+  position: relative;
+}
+
+#panorama {
+  width: 100%;
+  height: 100%;
+}
+
+/* ========================================
+   Minimap
+   ======================================== */
+.minimap-container {
+  position: absolute;
+  bottom: 2rem;
+  right: 2rem;
+  width: 280px;
+  height: 200px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  z-index: 100;
+  transition: 
+    width var(--transition-medium),
+    height var(--transition-medium);
+}
+
+.minimap-container.expanded {
+  width: 400px;
+  height: 300px;
+}
+
+#minimap {
+  width: 100%;
+  height: 100%;
+}
+
+.minimap-toggle {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  z-index: 10;
+  transition: background var(--transition-fast);
+}
+
+.minimap-toggle:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.minimap-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ========================================
+   Navigation Controls
+   ======================================== */
+.nav-controls {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 100px;
+  z-index: 100;
+}
+
+.nav-button {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: 
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.nav-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.nav-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.nav-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.nav-counter {
+  min-width: 80px;
+  text-align: center;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.nav-counter span {
+  color: var(--text-muted);
+}
+
+/* ========================================
+   Loading States
+   ======================================== */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  z-index: 200;
+  transition: opacity var(--transition-slow);
+}
+
+.loading-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--border-subtle);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   Mapbox Overrides
+   ======================================== */
+.mapboxgl-ctrl-attrib {
+  display: none !important;
+}
+
+.mapboxgl-ctrl-logo {
+  display: none !important;
+}
+
+/* Route line marker */
+.route-marker {
+  width: 12px;
+  height: 12px;
+  background: var(--accent-primary);
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: transform var(--transition-fast);
+}
+
+.route-marker:hover {
+  transform: scale(1.3);
+}
+
+.route-marker.active {
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 4px var(--accent-glow), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ========================================
+   Responsive
+   ======================================== */
+@media (max-width: 768px) {
+  .title-en {
+    font-size: 2.5rem;
+  }
+  
+  .neighborhoods-grid {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .minimap-container {
+    width: 160px;
+    height: 120px;
+    bottom: 1rem;
+    right: 1rem;
+  }
+  
+  .minimap-container.expanded {
+    width: 280px;
+    height: 200px;
+  }
+  
+  .nav-controls {
+    bottom: 1rem;
+    left: 1rem;
+    right: auto;
+    transform: none;
+  }
+  
+  .viewer-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  .viewer-title h1 {
+    font-size: 1.125rem;
+  }
+  
+  .viewer-info {
+    display: none;
+  }
+}
+

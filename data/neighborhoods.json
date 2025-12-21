@@ -1,0 +1,110 @@
+{
+  "neighborhoods": [
+    {
+      "id": "kinshicho",
+      "name": "Kinshicho",
+      "nameJa": "錦糸町",
+      "description": "Traditional eastern Tokyo near the Sumida River",
+      "date": "2025-12-09",
+      "bounds": {
+        "minLat": 35.697,
+        "maxLat": 35.700,
+        "minLon": 139.810,
+        "maxLon": 139.815
+      },
+      "center": [35.6985, 139.8125],
+      "timeRange": null
+    },
+    {
+      "id": "shinjuku",
+      "name": "Shinjuku",
+      "nameJa": "新宿",
+      "description": "Tokyo's bustling commercial and entertainment hub",
+      "date": "2025-12-10",
+      "bounds": {
+        "minLat": 35.688,
+        "maxLat": 35.700,
+        "minLon": 139.698,
+        "maxLon": 139.710
+      },
+      "center": [35.6945, 139.7025],
+      "timeRange": {
+        "start": "2025-12-10T01:00:00+00:00",
+        "end": "2025-12-10T04:00:00+00:00"
+      }
+    },
+    {
+      "id": "brahms-path",
+      "name": "Brahms Path",
+      "nameJa": "ブラームスの小径",
+      "description": "A quiet European-style alley in Minami-Aoyama",
+      "date": "2025-12-10",
+      "bounds": {
+        "minLat": 35.665,
+        "maxLat": 35.675,
+        "minLon": 139.700,
+        "maxLon": 139.710
+      },
+      "center": [35.6700, 139.7050],
+      "timeRange": {
+        "start": "2025-12-10T04:30:00+00:00",
+        "end": "2025-12-10T05:30:00+00:00"
+      }
+    },
+    {
+      "id": "omotesando",
+      "name": "Omotesando",
+      "nameJa": "表参道",
+      "description": "Tokyo's Champs-Élysées with designer boutiques",
+      "date": "2025-12-10",
+      "bounds": {
+        "minLat": 35.660,
+        "maxLat": 35.670,
+        "minLon": 139.705,
+        "maxLon": 139.715
+      },
+      "center": [35.6650, 139.7100],
+      "timeRange": {
+        "start": "2025-12-10T05:30:00+00:00",
+        "end": "2025-12-10T08:00:00+00:00"
+      }
+    },
+    {
+      "id": "nezu",
+      "name": "Nezu",
+      "nameJa": "根津",
+      "description": "Historic neighborhood with traditional charm",
+      "date": "2025-12-11",
+      "bounds": {
+        "minLat": 35.715,
+        "maxLat": 35.730,
+        "minLon": 139.760,
+        "maxLon": 139.770
+      },
+      "center": [35.7220, 139.7640],
+      "timeRange": {
+        "start": "2025-12-11T01:00:00+00:00",
+        "end": "2025-12-11T05:30:00+00:00"
+      }
+    },
+    {
+      "id": "jinbocho",
+      "name": "Jinbocho",
+      "nameJa": "神保町",
+      "description": "Tokyo's famous book town district",
+      "date": "2025-12-11",
+      "bounds": {
+        "minLat": 35.693,
+        "maxLat": 35.700,
+        "minLon": 139.755,
+        "maxLon": 139.765
+      },
+      "center": [35.6952, 139.7585],
+      "timeRange": {
+        "start": "2025-12-11T05:30:00+00:00",
+        "end": "2025-12-11T08:00:00+00:00"
+      }
+    }
+  ]
+}
+
