@@ -371,14 +371,38 @@ body {
   overflow: hidden;
   box-shadow: var(--shadow-card);
   z-index: 100;
-  transition: 
-    width var(--transition-medium),
-    height var(--transition-medium);
+  transition: all var(--transition-medium);
 }
 
-.minimap-container.expanded {
-  width: 400px;
-  height: 300px;
+/* Split screen mode */
+.viewer-container.split-screen .panorama-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+}
+
+.viewer-container.split-screen .minimap-container {
+  top: 0;
+  left: 50%;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.viewer-container.split-screen .nav-controls {
+  left: 25%;
+}
+
+.viewer-container.split-screen .debug-panel {
+  left: 1rem;
+  bottom: 6rem;
+  max-width: calc(50% - 2rem);
 }
 
 #minimap {
@@ -526,28 +550,60 @@ body {
   display: none !important;
 }
 
-/* Route line marker */
-.route-marker {
+/* Active photo marker */
+.active-marker {
+  width: 18px;
+  height: 18px;
+  background: white;
+  border: 3px solid var(--accent-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--accent-glow), 0 2px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+/* Debug panel */
+.debug-panel {
+  position: absolute;
+  bottom: 2rem;
+  left: 2rem;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  z-index: 100;
+  max-width: 400px;
+}
+
+.debug-title {
+  font-weight: bold;
+  color: var(--accent-primary);
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.debug-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  word-break: break-all;
+}
+
+.debug-row span:first-child {
+  color: var(--text-muted);
+  min-width: 70px;
+}
+
+.debug-color-swatch {
+  display: inline-block;
   width: 12px;
   height: 12px;
-  background: var(--accent-primary);
-  border: 2px solid white;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  transition: transform var(--transition-fast);
-}
-
-.route-marker:hover {
-  transform: scale(1.3);
-}
-
-.route-marker.active {
-  width: 16px;
-  height: 16px;
-  background: white;
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 4px var(--accent-glow), 0 2px 8px rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 4px;
 }
 
 /* ========================================

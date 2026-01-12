@@ -8,11 +8,12 @@ mapboxgl.accessToken = 'pk.eyJ1IjoiY3Jlc2NlbmRvY2h1IiwiYSI6ImNpdGR5MWZ5aDAycjIyc
 // State
 let neighborhood = null;
 let photos = [];
+let folders = {}; // Map folder name to folder data (including gpx_file)
 let currentIndex = 0;
 let viewer = null;
 let map = null;
-let markers = [];
 let activeMarker = null;
+let photoColors = {}; // Map photo index to route color
 
 // DOM Elements
 const elements = {
@@ -27,7 +28,13 @@ const elements = {
   prevBtn: document.getElementById('prev-btn'),
   nextBtn: document.getElementById('next-btn'),
   currentIndex: document.getElementById('current-index'),
-  totalCount: document.getElementById('total-count')
+  totalCount: document.getElementById('total-count'),
+  // Debug elements
+  debugFolder: document.getElementById('debug-folder'),
+  debugFile: document.getElementById('debug-file'),
+  debugCoords: document.getElementById('debug-coords'),
+  debugGpx: document.getElementById('debug-gpx'),
+  debugColor: document.getElementById('debug-color')
 };
 
 // ========================================
@@ -47,7 +54,7 @@ async function init() {
     // Load data
     const [neighborhoodsData, indexData] = await Promise.all([
       fetch('data/neighborhoods.json').then(r => r.json()),
-      fetch('data/index.json').then(r => r.json())
+      fetch(`data/index.json?t=${Date.now()}`).then(r => r.json())
     ]);
     
     // Find neighborhood
@@ -56,6 +63,13 @@ async function init() {
     if (!neighborhood) {
       window.location.href = 'index.html';
       return;
+    }
+    
+    // Store folders data for GPX file lookup
+    if (indexData.folders) {
+      indexData.folders.forEach(f => {
+        folders[f.name] = f;
+      });
     }
     
     // Get photos for this neighborhood
@@ -141,58 +155,154 @@ function initMinimap() {
   });
   
   map.on('load', () => {
-    // Add route line
-    const coordinates = photos.map(p => [p.lon, p.lat]);
+    // Group photos by folder (each folder = one route/direction)
+    const routesByFolder = {};
     
-    map.addSource('route', {
+    photos.forEach((photo, index) => {
+      if (photo.lat && photo.lon && photo.folder) {
+        if (!routesByFolder[photo.folder]) {
+          routesByFolder[photo.folder] = [];
+        }
+        routesByFolder[photo.folder].push({ photo, index });
+      }
+    });
+    
+    // Generate distinct colors for each route
+    const folderNames = Object.keys(routesByFolder);
+    const routeColors = generateRouteColors(folderNames.length);
+    
+    // Track coordinate usage to offset overlapping points
+    const coordCounts = {};
+    
+    // Build features for each route
+    const allFeatures = [];
+    
+    folderNames.forEach((folder, routeIndex) => {
+      const routePhotos = routesByFolder[folder];
+      const color = routeColors[routeIndex];
+      
+      // Sort by timestamp within folder
+      routePhotos.sort((a, b) => new Date(a.photo.timestamp) - new Date(b.photo.timestamp));
+      
+      // Create line for this route (using original coordinates)
+      const lineCoords = routePhotos.map(r => [r.photo.lon, r.photo.lat]);
+      if (lineCoords.length > 1) {
+        allFeatures.push({
+          type: 'Feature',
+          properties: { color: color, routeIndex: routeIndex },
+          geometry: {
+            type: 'LineString',
+            coordinates: lineCoords
+          }
+        });
+      }
+      
+      // Create points for this route with offset for overlapping coords
+      routePhotos.forEach(r => {
+        const key = `${r.photo.lat.toFixed(6)},${r.photo.lon.toFixed(6)}`;
+        if (!coordCounts[key]) {
+          coordCounts[key] = 0;
+        }
+        const count = coordCounts[key];
+        coordCounts[key]++;
+        
+        // Store color for this photo (for debug display)
+        photoColors[r.index] = color;
+        
+        // Apply spiral offset for overlapping points
+        const offset = getPointOffset(count);
+        
+        allFeatures.push({
+          type: 'Feature',
+          properties: { 
+            index: r.index, 
+            color: color,
+            routeIndex: routeIndex
+          },
+          geometry: {
+            type: 'Point',
+            coordinates: [r.photo.lon + offset.lon, r.photo.lat + offset.lat]
+          }
+        });
+      });
+    });
+    
+    map.addSource('photos', {
       type: 'geojson',
       data: {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: coordinates
-        }
+        type: 'FeatureCollection',
+        features: allFeatures
       }
     });
     
-    // Route line glow
+    // Path layer (drawn first, underneath dots)
     map.addLayer({
-      id: 'route-glow',
+      id: 'photos-path',
       type: 'line',
-      source: 'route',
+      source: 'photos',
+      filter: ['==', '$type', 'LineString'],
       layout: {
         'line-join': 'round',
         'line-cap': 'round'
       },
       paint: {
-        'line-color': '#e85d4c',
-        'line-width': 8,
-        'line-opacity': 0.3,
-        'line-blur': 3
+        'line-color': ['get', 'color'],
+        'line-width': 2.5,
+        'line-opacity': 0.8
       }
     });
     
-    // Route line
+    // Glow layer for all points
     map.addLayer({
-      id: 'route-line',
-      type: 'line',
-      source: 'route',
-      layout: {
-        'line-join': 'round',
-        'line-cap': 'round'
-      },
+      id: 'photos-glow',
+      type: 'circle',
+      source: 'photos',
+      filter: ['==', '$type', 'Point'],
       paint: {
-        'line-color': '#e85d4c',
-        'line-width': 3,
-        'line-opacity': 0.9
+        'circle-radius': 6,
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.3,
+        'circle-blur': 1
       }
     });
     
-    // Add photo markers
-    addPhotoMarkers();
+    // All photo points (on top)
+    map.addLayer({
+      id: 'photos-points',
+      type: 'circle',
+      source: 'photos',
+      filter: ['==', '$type', 'Point'],
+      paint: {
+        'circle-radius': 3.5,
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 1,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': 'rgba(255, 255, 255, 0.6)'
+      }
+    });
+    
+    // Click handler for points
+    map.on('click', 'photos-points', (e) => {
+      if (e.features && e.features.length > 0) {
+        const index = e.features[0].properties.index;
+        loadPhoto(index);
+      }
+    });
+    
+    // Change cursor on hover
+    map.on('mouseenter', 'photos-points', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    
+    map.on('mouseleave', 'photos-points', () => {
+      map.getCanvas().style.cursor = '';
+    });
+    
+    // Add active marker (will be updated when photo changes)
+    addActiveMarker();
     
     // Fit bounds
+    const coordinates = photos.map(p => [p.lon, p.lat]);
     if (coordinates.length > 0) {
       const bounds = coordinates.reduce((bounds, coord) => {
         return bounds.extend(coord);
@@ -207,36 +317,18 @@ function initMinimap() {
 }
 
 // ========================================
-// Add Photo Markers to Minimap
+// Add Active Marker to Minimap
 // ========================================
-function addPhotoMarkers() {
-  // Only add markers for every Nth photo to avoid clutter
-  const step = Math.max(1, Math.floor(photos.length / 30));
+function addActiveMarker() {
+  const el = document.createElement('div');
+  el.className = 'active-marker';
   
-  photos.forEach((photo, index) => {
-    // Always add first, last, and every Nth marker
-    if (index !== 0 && index !== photos.length - 1 && index % step !== 0) {
-      return;
-    }
-    
-    const el = document.createElement('div');
-    el.className = 'route-marker';
-    el.dataset.index = index;
-    
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      loadPhoto(index);
-    });
-    
-    const marker = new mapboxgl.Marker({
-      element: el,
-      anchor: 'center'
-    })
-      .setLngLat([photo.lon, photo.lat])
-      .addTo(map);
-    
-    markers.push({ marker, element: el, index });
-  });
+  activeMarker = new mapboxgl.Marker({
+    element: el,
+    anchor: 'center'
+  })
+    .setLngLat([photos[0].lon, photos[0].lat])
+    .addTo(map);
 }
 
 // ========================================
@@ -291,6 +383,22 @@ function loadPhoto(index) {
   elements.prevBtn.disabled = index === 0;
   elements.nextBtn.disabled = index === photos.length - 1;
   
+  // Update debug info
+  if (elements.debugFolder) {
+    elements.debugFolder.textContent = photo.folder || 'N/A';
+    elements.debugFile.textContent = photo.filename || 'N/A';
+    elements.debugCoords.textContent = photo.lat && photo.lon 
+      ? `${photo.lat.toFixed(6)}, ${photo.lon.toFixed(6)}` 
+      : 'No coordinates';
+    
+    // Get GPX file from folder data
+    const folderData = folders[photo.folder];
+    elements.debugGpx.textContent = folderData?.gpx_file || 'No GPX';
+    
+    const color = photoColors[index] || '#999';
+    elements.debugColor.innerHTML = `<span class="debug-color-swatch" style="background:${color}"></span>${color}`;
+  }
+  
   // Update map
   updateMapPosition(photo);
   
@@ -315,26 +423,8 @@ function updateMapPosition(photo) {
 // Update Active Marker
 // ========================================
 function updateActiveMarker(index) {
-  // Remove active class from all markers
-  markers.forEach(m => {
-    m.element.classList.remove('active');
-  });
-  
-  // Find and activate the nearest marker
-  let nearestMarker = null;
-  let minDistance = Infinity;
-  
-  markers.forEach(m => {
-    const distance = Math.abs(m.index - index);
-    if (distance < minDistance) {
-      minDistance = distance;
-      nearestMarker = m;
-    }
-  });
-  
-  if (nearestMarker) {
-    nearestMarker.element.classList.add('active');
-    activeMarker = nearestMarker;
+  if (activeMarker && photos[index]) {
+    activeMarker.setLngLat([photos[index].lon, photos[index].lat]);
   }
 }
 
@@ -360,10 +450,18 @@ function initControls() {
     }
   });
   
-  // Minimap toggle
+  // Minimap toggle - split screen mode
   elements.minimapToggle.addEventListener('click', () => {
-    elements.minimapContainer.classList.toggle('expanded');
-    map.resize();
+    const container = document.querySelector('.viewer-container');
+    container.classList.toggle('split-screen');
+    
+    // Resize both map and panorama after transition
+    setTimeout(() => {
+      map.resize();
+      if (viewer) {
+        viewer.resize();
+      }
+    }, 300);
   });
 }
 
@@ -379,6 +477,53 @@ function formatTimestamp(timestamp) {
     minute: '2-digit',
     hour12: true
   });
+}
+
+// Calculate offset for overlapping points (spiral pattern)
+function getPointOffset(index) {
+  if (index === 0) {
+    return { lat: 0, lon: 0 };
+  }
+  
+  // Spiral offset - each subsequent point gets placed in a circle around the original
+  const offsetDistance = 0.00003; // ~3 meters at Tokyo's latitude
+  const angle = (index * 137.5) * (Math.PI / 180); // Golden angle for even distribution
+  const radius = offsetDistance * Math.sqrt(index);
+  
+  return {
+    lat: radius * Math.cos(angle),
+    lon: radius * Math.sin(angle)
+  };
+}
+
+// Generate visually distinct colors for routes
+function generateRouteColors(count) {
+  const baseColors = [
+    '#22d3ee', // cyan
+    '#f97316', // orange
+    '#a855f7', // purple
+    '#10b981', // emerald
+    '#f43f5e', // rose
+    '#3b82f6', // blue
+    '#eab308', // yellow
+    '#ec4899', // pink
+    '#14b8a6', // teal
+    '#8b5cf6', // violet
+    '#84cc16', // lime
+    '#06b6d4', // cyan-500
+    '#f59e0b', // amber
+    '#6366f1', // indigo
+    '#ef4444', // red
+    '#0ea5e9', // sky
+    '#d946ef', // fuchsia
+    '#22c55e', // green
+  ];
+  
+  const colors = [];
+  for (let i = 0; i < count; i++) {
+    colors.push(baseColors[i % baseColors.length]);
+  }
+  return colors;
 }
 
 // ========================================
