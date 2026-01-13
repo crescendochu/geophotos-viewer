@@ -36,6 +36,7 @@ python scripts/delete_photos.py IMG_20251211_130030_892_902_INTERVAL #(this one 
 python scripts/delete_photos.py IMG_20251211_111109_548_579_INTERVAL
 python scripts/delete_photos.py IMG_20251211_110558_530_533_INTERVAL
 python scripts/delete_photos.py IMG_20251211_124506_845_846_INTERVAL
+python scripts/delete_photos.py IMG_20251210_134422_943_948_INTERVAL
 
 
 # Delete multiple folders
