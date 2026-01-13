@@ -53,8 +53,8 @@ async function init() {
     
     // Load data
     const [neighborhoodsData, indexData] = await Promise.all([
-      fetch('data/neighborhoods.json').then(r => r.json()),
-      fetch(`data/index.json?t=${Date.now()}`).then(r => r.json())
+      fetch('../data/neighborhoods.json').then(r => r.json()),
+      fetch(`../data/index.json?t=${Date.now()}`).then(r => r.json())
     ]);
     
     // Find neighborhood
@@ -350,7 +350,7 @@ function loadPhoto(index) {
   });
   
   // Set new panorama
-  const imagePath = `photos/${photo.path}`;
+  const imagePath = `../photos/output/${photo.path}`;
   
   viewer.destroy();
   viewer = pannellum.viewer('panorama', {

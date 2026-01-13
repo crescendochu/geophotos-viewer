@@ -17,8 +17,8 @@ async function init() {
   try {
     // Load data
     const [neighborhoodsData, indexData] = await Promise.all([
-      fetch('data/neighborhoods.json').then(r => r.json()),
-      fetch(`data/index.json?t=${Date.now()}`).then(r => r.json())
+      fetch('../data/neighborhoods.json').then(r => r.json()),
+      fetch(`../data/index.json?t=${Date.now()}`).then(r => r.json())
     ]);
     
     neighborhoods = neighborhoodsData.neighborhoods;

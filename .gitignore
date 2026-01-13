@@ -208,7 +208,8 @@ __marimo__/
 
 # GeoPhotos Viewer - Large media files
 # Photo directories (2000+ JPG files)
-photos/
+photos/output/
+photos/input/
 
 # GPS track files (GPX files)
 gps/
