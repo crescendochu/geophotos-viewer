@@ -40,6 +40,11 @@ TIMEZONE_OFFSET = 9
 # How far outside the GPX track time range to still accept matches (seconds)
 TIME_TOLERANCE_SECONDS = 120
 
+# If True, only match folders to GPX tracks that start close to the folder time
+# (prevents matching to long tracks that happen to cover the folder time)
+# If False, will match if folder time is anywhere within the track
+STRICT_MATCHING = True
+
 # Set to True to preview without making changes, False to actually update files
 DRY_RUN = False
 
@@ -290,6 +295,7 @@ def find_best_gpx_for_folder(
     """
     Find the single best GPX track for an entire folder.
     Uses the folder's timestamp (from folder name) to find the best match.
+    Only matches if the folder time is within or very close to the GPX track time range.
     """
     # Extract timestamp from folder name (e.g., IMG_20251209_125427_312_313_INTERVAL)
     match = re.search(r'IMG_(\d{8})_(\d{6})', folder_path.name)
@@ -305,37 +311,52 @@ def find_best_gpx_for_folder(
     folder_start_time = local_dt.astimezone(timezone.utc)
     
     # Find GPX track that best matches the folder start time
+    # Only match if folder time is within the track OR very close (within tolerance)
     best_track = None
-    best_score = float('-inf')
+    best_score = None  # Use None to track if we found any valid match
     
     for track in gpx_tracks:
         # Case 1: folder starts within the track (ideal case)
         if track.start_time <= folder_start_time <= track.end_time:
-            # Score by how much time is left in the track
-            score = (track.end_time - folder_start_time).total_seconds()
-            if score > best_score:
-                best_score = score
-                best_track = track
+            # If strict matching is enabled, only match if folder is close to track start
+            if STRICT_MATCHING:
+                time_from_start = (folder_start_time - track.start_time).total_seconds()
+                # Only match if folder is within tolerance of track start
+                if time_from_start <= TIME_TOLERANCE_SECONDS:
+                    score = (track.end_time - folder_start_time).total_seconds()
+                    if best_score is None or score > best_score:
+                        best_score = score
+                        best_track = track
+            else:
+                # Original behavior: match if folder is anywhere within track
+                score = (track.end_time - folder_start_time).total_seconds()
+                if best_score is None or score > best_score:
+                    best_score = score
+                    best_track = track
         
         # Case 2: track ended before folder started, but within tolerance
+        # Only match if the gap is small (within tolerance)
         elif track.end_time < folder_start_time:
             gap = (folder_start_time - track.end_time).total_seconds()
             if gap <= TIME_TOLERANCE_SECONDS:
                 score = -gap  # Negative score, closer is better
-                if score > best_score:
+                if best_score is None or score > best_score:
                     best_score = score
                     best_track = track
         
         # Case 3: track starts after folder (you started camera first), within tolerance
+        # Only match if the gap is small (within tolerance)
         elif track.start_time > folder_start_time:
             gap = (track.start_time - folder_start_time).total_seconds()
             if gap <= TIME_TOLERANCE_SECONDS:
                 score = -gap  # Negative score, closer is better
-                if score > best_score:
+                if best_score is None or score > best_score:
                     best_score = score
                     best_track = track
     
-    return best_track
+    # Only return a track if we found a valid match
+    # If best_score is None, no valid match was found (folder time is too far from any track)
+    return best_track if best_score is not None else None
 
 
 def process_photo_folder(

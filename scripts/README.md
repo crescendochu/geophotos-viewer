@@ -28,6 +28,16 @@ Deletes noisy/interrupted photo data from both the index and disk.
 # Delete by folder ID (removes entire folder)
 python scripts/delete_photos.py IMG_20251211_120437_707_714_INTERVAL
 
+### Deleted folders
+python scripts/delete_photos.py IMG_20251211_103243_375_375_INTERVAL
+python scripts/delete_photos.py IMG_20251211_131419_930_933_INTERVAL
+python scripts/delete_photos.py IMG_20251211_122023_754_756_INTERVAL
+python scripts/delete_photos.py IMG_20251211_130030_892_902_INTERVAL #(this one could be useful, same route with IMG_20251211_130643_903_913_INTERVAL)
+python scripts/delete_photos.py IMG_20251211_111109_548_579_INTERVAL
+python scripts/delete_photos.py IMG_20251211_110558_530_533_INTERVAL
+python scripts/delete_photos.py IMG_20251211_124506_845_846_INTERVAL
+
+
 # Delete multiple folders
 python scripts/delete_photos.py folder1 folder2 folder3
 
@@ -40,6 +50,31 @@ python scripts/delete_photos.py --paths "2025-12-11/IMG_.../IMG_20251211_120437_
 - Updates folder counts
 - Deletes photo files from `photos/output/` (optional, default: yes)
 - Updates the `generated` timestamp in `index.json`
+
+### `reassign_gpx.py`
+Reassigns a photo folder to a different GPX file. Useful for spot corrections when:
+- GPX files are added later (you forgot to export one)
+- A folder was incorrectly matched to the wrong GPX file
+
+**Usage:**
+```bash
+python scripts/reassign_gpx.py <folder_name> <gpx_filename> [--dry-run]
+
+# Example: Reassign folder to correct GPX file
+python scripts/reassign_gpx.py IMG_20251211_133133_966_972_INTERVAL "2025-12-11-133133-Outdoor Walking-Chu's Apple Watch.gpx"
+
+#reassigned folders
+python scripts/reassign_gpx.py IMG_20251211_130030_892_902_INTERVAL "2025-12-11-130038-Outdoor Walking-Chu’s Apple Watch.gpx"
+
+# Preview changes without applying them
+python scripts/reassign_gpx.py IMG_20251211_133133_966_972_INTERVAL "2025-12-11-133133-Outdoor Walking-Chu's Apple Watch.gpx" --dry-run
+```
+
+**What it does:**
+- Re-processes all photos in the specified folder using the new GPX file
+- Updates EXIF GPS tags in `photos/output/`
+- Updates `data/index.json` with new GPS coordinates and GPX file reference
+- Handles Unicode characters in filenames (like non-breaking spaces)
 
 ## Auto-Update Workflow
 
