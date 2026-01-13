@@ -38,6 +38,16 @@ python scripts/delete_photos.py IMG_20251211_110558_530_533_INTERVAL
 python scripts/delete_photos.py IMG_20251211_124506_845_846_INTERVAL
 python scripts/delete_photos.py IMG_20251210_134422_943_948_INTERVAL
 
+python scripts/delete_photos.py IMG_20251210_151014_216_216_INTERVAL
+python scripts/delete_photos.py IMG_20251210_160242_367_370_INTERVAL
+python scripts/delete_photos.py IMG_20251210_140704_974_975_INTERVAL
+python scripts/delete_photos.py IMG_20251210_155058_332_339_INTERVAL #(this one could be useful, same route with IMG_20251210_155957_359_366_INTERVAL)
+
+python scripts/delete_photos.py IMG_20251209_143149_511_527_INTERVAL
+python scripts/delete_photos.py IMG_20251209_145245_574_578_INTERVAL
+python scripts/delete_photos.py IMG_20251209_150113_599_603_INTERVAL
+python scripts/delete_photos.py IMG_20251209_145830_589_593_INTERVAL
+
 
 # Delete multiple folders
 python scripts/delete_photos.py folder1 folder2 folder3
