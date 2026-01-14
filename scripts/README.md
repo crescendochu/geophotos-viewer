@@ -48,6 +48,8 @@ python scripts/delete_photos.py IMG_20251209_145245_574_578_INTERVAL
 python scripts/delete_photos.py IMG_20251209_150113_599_603_INTERVAL
 python scripts/delete_photos.py IMG_20251209_145830_589_593_INTERVAL
 
+python scripts/delete_photos.py IMG_20251209_141157_467_470_INTERVAL
+
 
 # Delete multiple folders
 python scripts/delete_photos.py folder1 folder2 folder3
@@ -61,6 +63,32 @@ python scripts/delete_photos.py --paths "2025-12-11/IMG_.../IMG_20251211_120437_
 - Updates folder counts
 - Deletes photo files from `photos/output/` (optional, default: yes)
 - Updates the `generated` timestamp in `index.json`
+
+### `delete_individual_photos.py`
+Deletes individual photos by filename and automatically re-matches GPX data for the remaining photos in the folder. Useful when you forgot to turn off the camera and want to remove specific photos.
+
+**Usage:**
+```bash
+# Delete one or more individual photos by filename
+python scripts/delete_individual_photos.py IMG_20251209_144524_00_554.jpg
+
+# Delete multiple photos at once
+python scripts/delete_individual_photos.py IMG_20251209_144524_00_554.jpg IMG_20251209_144525_00_555.jpg IMG_20251209_144526_00_556.jpg
+```
+
+# photos to delete
+python scripts/delete_individual_photos.py IMG_20251209_144341_00_547.jpg IMG_20251209_144357_00_548.jpg IMG_20251209_144412_00_549.jpg IMG_20251209_144426_00_550.jpg IMG_20251209_144441_00_551.jpg IMG_20251209_144455_00_552.jpg IMG_20251209_144510_00_553.jpg IMG_20251209_144524_00_554.jpg
+
+**What it does:**
+- Finds the photos in `data/index.json` by filename
+- Deletes photo files from `photos/output/`
+- Removes photo entries from `data/index.json`
+- Re-processes the folder(s) containing the deleted photos
+- Re-matches remaining photos with GPX data
+- Updates EXIF GPS tags for remaining photos
+- Updates `data/index.json` with new GPS coordinates
+
+**Note:** The script will automatically find which folder each photo belongs to and re-process that entire folder to ensure all remaining photos are properly matched with GPX data.
 
 ### `reassign_gpx.py`
 Reassigns a photo folder to a different GPX file. Useful for spot corrections when:
@@ -76,6 +104,8 @@ python scripts/reassign_gpx.py IMG_20251211_133133_966_972_INTERVAL "2025-12-11-
 
 #reassigned folders
 python scripts/reassign_gpx.py IMG_20251211_130030_892_902_INTERVAL "2025-12-11-130038-Outdoor Walking-Chu’s Apple Watch.gpx"
+
+python scripts/reassign_gpx.py IMG_20251209_133130_406_414_INTERVAL "2025-12-09-133410-Outdoor Walking-Chu’s Apple Watch.gpx"
 
 # Preview changes without applying them
 python scripts/reassign_gpx.py IMG_20251211_133133_966_972_INTERVAL "2025-12-11-133133-Outdoor Walking-Chu's Apple Watch.gpx" --dry-run
