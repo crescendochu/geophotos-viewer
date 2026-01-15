@@ -53,6 +53,9 @@ python scripts/delete_photos.py IMG_20251209_141157_467_470_INTERVAL
 python scripts/delete_photos.py IMG_20251209_133130_406_414_INTERVAL
 
 
+python scripts/delete_photos.py IMG_20251209_125427_312_313_INTERVAL
+
+
 # Delete multiple folders
 python scripts/delete_photos.py folder1 folder2 folder3
 
@@ -110,7 +113,7 @@ python scripts/reassign_gpx.py IMG_20251211_133133_966_972_INTERVAL "2025-12-11-
 #reassigned folders
 python scripts/reassign_gpx.py IMG_20251211_130030_892_902_INTERVAL "2025-12-11-130038-Outdoor Walking-Chu’s Apple Watch.gpx"
 
-python scripts/reassign_gpx.py IMG_20251209_133130_406_414_INTERVAL "2025-12-09-133410-Outdoor Walking-Chu’s Apple Watch.gpx"
+python scripts/reassign_gpx.py IMG_20251209_133130_406_414_INTERVAL "2025-12-09-133120-Outdoor Walking-Chu’s Apple Watch.gpx"
 
 # Preview changes without applying them
 python scripts/reassign_gpx.py IMG_20251211_133133_966_972_INTERVAL "2025-12-11-133133-Outdoor Walking-Chu's Apple Watch.gpx" --dry-run

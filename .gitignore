@@ -216,3 +216,5 @@ gps/
 
 # Large data file (optional - uncomment if you want to exclude it)
 # data/index.json
+.DS_Store
+photos/.DS_Store
