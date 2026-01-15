@@ -437,6 +437,37 @@ body {
   height: 14px;
 }
 
+.line-toggle {
+  position: absolute;
+  top: 2.5rem;
+  right: 0.5rem;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  z-index: 10;
+  transition: background var(--transition-fast), opacity var(--transition-fast);
+}
+
+.line-toggle:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.line-toggle.is-off {
+  opacity: 0.6;
+}
+
+.line-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* ========================================
    Navigation Controls
    ======================================== */

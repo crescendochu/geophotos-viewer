@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Delete individual photos and re-match GPX for remaining photos in the folder.
+Delete individual photos and optionally re-match GPX for remaining photos.
 
 Usage:
     python scripts/delete_individual_photos.py <photo_filename1> [photo_filename2] ...
+    python scripts/delete_individual_photos.py --no-reassign <photo_filename1> [photo_filename2] ...
     
 Example:
     python scripts/delete_individual_photos.py IMG_20251209_144524_00_554.jpg IMG_20251209_144525_00_555.jpg
+    python scripts/delete_individual_photos.py --no-reassign IMG_20251209_144524_00_554.jpg
 """
 
 import sys
@@ -444,8 +446,37 @@ def reprocess_folder(
     return result
 
 
-def delete_individual_photos(photo_filenames: List[str], repo_root: Path):
-    """Delete individual photos and re-process their folders."""
+def update_folder_counts(index: dict, folders_to_update: set):
+    """Update folder totals/matched and drop empty folders."""
+    remaining_by_folder = {}
+    for photo in index.get('photos', []):
+        folder_name = photo.get('folder')
+        if not folder_name:
+            continue
+        if folder_name not in remaining_by_folder:
+            remaining_by_folder[folder_name] = {'total': 0, 'matched': 0}
+        remaining_by_folder[folder_name]['total'] += 1
+        if photo.get('lat') and photo.get('lon'):
+            remaining_by_folder[folder_name]['matched'] += 1
+
+    updated_folders = []
+    for folder in index.get('folders', []):
+        folder_name = folder.get('name')
+        if folder_name in folders_to_update:
+            counts = remaining_by_folder.get(folder_name)
+            if counts:
+                folder['total'] = counts['total']
+                folder['matched'] = counts['matched']
+                updated_folders.append(folder)
+            # Drop empty folders
+        else:
+            updated_folders.append(folder)
+
+    index['folders'] = updated_folders
+
+
+def delete_individual_photos(photo_filenames: List[str], repo_root: Path, reassign_gpx: bool = True):
+    """Delete individual photos and optionally re-process their folders."""
     
     index_file = repo_root / "data" / "index.json"
     output_dir = repo_root / PHOTOS_OUTPUT
@@ -515,55 +546,58 @@ def delete_individual_photos(photo_filenames: List[str], repo_root: Path):
     print(f"\n✓ Deleted {deleted_count} photo(s) from disk")
     print(f"✓ Removed {deleted_count} photo entry/entries from index")
     
-    # Re-process folders
-    print(f"\nRe-processing {len(folders_to_reprocess)} folder(s)...")
-    
-    for folder_name, date_str in folders_to_reprocess:
-        print(f"\n  Re-processing folder: {folder_name}")
-        result = reprocess_folder(folder_name, date_str, repo_root)
+    if reassign_gpx:
+        # Re-process folders
+        print(f"\nRe-processing {len(folders_to_reprocess)} folder(s)...")
         
-        # Update folder entry in index
-        folder_entry = None
-        for folder in index['folders']:
-            if folder.get('name') == folder_name:
-                folder_entry = folder
-                break
-        
-        if folder_entry:
-            folder_entry['total'] = result.total_photos
-            folder_entry['matched'] = result.matched_photos
-            folder_entry['gpx_file'] = result.gpx_file
-        else:
-            # Add new folder entry
-            index['folders'].append({
-                "name": folder_name,
-                "date": date_str,
-                "total": result.total_photos,
-                "matched": result.matched_photos,
-                "gpx_file": result.gpx_file
-            })
-        
-        # Remove old photo entries for this folder
-        index['photos'] = [
-            p for p in index['photos']
-            if p.get('folder') != folder_name
-        ]
-        
-        # Add new photo entries
-        for photo_match in result.photos:
-            if photo_match.matched:
-                index['photos'].append({
-                    "filename": photo_match.filename,
-                    "folder": folder_name,
+        for folder_name, date_str in folders_to_reprocess:
+            print(f"\n  Re-processing folder: {folder_name}")
+            result = reprocess_folder(folder_name, date_str, repo_root)
+            
+            # Update folder entry in index
+            folder_entry = None
+            for folder in index['folders']:
+                if folder.get('name') == folder_name:
+                    folder_entry = folder
+                    break
+            
+            if folder_entry:
+                folder_entry['total'] = result.total_photos
+                folder_entry['matched'] = result.matched_photos
+                folder_entry['gpx_file'] = result.gpx_file
+            else:
+                # Add new folder entry
+                index['folders'].append({
+                    "name": folder_name,
                     "date": date_str,
-                    "lat": photo_match.lat,
-                    "lon": photo_match.lon,
-                    "ele": photo_match.ele,
-                    "timestamp": photo_match.timestamp.isoformat() if photo_match.timestamp else None,
-                    "path": f"{date_str}/{folder_name}/{photo_match.filename}"
+                    "total": result.total_photos,
+                    "matched": result.matched_photos,
+                    "gpx_file": result.gpx_file
                 })
-        
-        print(f"    ✓ Re-matched {result.matched_photos}/{result.total_photos} photos")
+            
+            # Remove old photo entries for this folder
+            index['photos'] = [
+                p for p in index['photos']
+                if p.get('folder') != folder_name
+            ]
+            
+            # Add new photo entries
+            for photo_match in result.photos:
+                if photo_match.matched:
+                    index['photos'].append({
+                        "filename": photo_match.filename,
+                        "folder": folder_name,
+                        "date": date_str,
+                        "lat": photo_match.lat,
+                        "lon": photo_match.lon,
+                        "ele": photo_match.ele,
+                        "timestamp": photo_match.timestamp.isoformat() if photo_match.timestamp else None,
+                        "path": f"{date_str}/{folder_name}/{photo_match.filename}"
+                    })
+            
+            print(f"    ✓ Re-matched {result.matched_photos}/{result.total_photos} photos")
+    else:
+        update_folder_counts(index, {name for name, _ in folders_to_reprocess})
     
     # Update totals
     index['total_photos'] = len(index['photos'])
@@ -578,28 +612,38 @@ def delete_individual_photos(photo_filenames: List[str], repo_root: Path):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python scripts/delete_individual_photos.py <photo_filename1> [photo_filename2] ...")
-        print("\nExample:")
+    args = sys.argv[1:]
+    reassign_gpx = True
+    if '--no-reassign' in args:
+        reassign_gpx = False
+        args = [a for a in args if a != '--no-reassign']
+
+    if len(args) < 1:
+        print("Usage: python scripts/delete_individual_photos.py [--no-reassign] <photo_filename1> [photo_filename2] ...")
+        print("\nExamples:")
         print("  python scripts/delete_individual_photos.py IMG_20251209_144524_00_554.jpg IMG_20251209_144525_00_555.jpg")
+        print("  python scripts/delete_individual_photos.py --no-reassign IMG_20251209_144524_00_554.jpg")
         sys.exit(1)
     
-    # Check exiftool
-    result = subprocess.run(['which', 'exiftool'], capture_output=True, text=True)
-    if result.returncode != 0:
-        print("Error: exiftool not found! Install with: brew install exiftool")
-        sys.exit(1)
+    if reassign_gpx:
+        # Check exiftool
+        result = subprocess.run(['which', 'exiftool'], capture_output=True, text=True)
+        if result.returncode != 0:
+            print("Error: exiftool not found! Install with: brew install exiftool")
+            sys.exit(1)
     
-    photo_filenames = sys.argv[1:]
+    photo_filenames = args
     repo_root = Path(__file__).parent.parent
     
     print("="*60)
-    print("Delete Individual Photos & Re-match GPX")
+    print("Delete Individual Photos")
     print("="*60)
     print(f"Photos to delete: {len(photo_filenames)}")
+    if not reassign_gpx:
+        print("Reassign GPX: no")
     print("="*60 + "\n")
     
-    delete_individual_photos(photo_filenames, repo_root)
+    delete_individual_photos(photo_filenames, repo_root, reassign_gpx=reassign_gpx)
     
     print("\n✓ Done!")
 

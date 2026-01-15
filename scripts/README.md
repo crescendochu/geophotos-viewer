@@ -50,6 +50,8 @@ python scripts/delete_photos.py IMG_20251209_145830_589_593_INTERVAL
 
 python scripts/delete_photos.py IMG_20251209_141157_467_470_INTERVAL
 
+python scripts/delete_photos.py IMG_20251209_133130_406_414_INTERVAL
+
 
 # Delete multiple folders
 python scripts/delete_photos.py folder1 folder2 folder3
@@ -74,6 +76,9 @@ python scripts/delete_individual_photos.py IMG_20251209_144524_00_554.jpg
 
 # Delete multiple photos at once
 python scripts/delete_individual_photos.py IMG_20251209_144524_00_554.jpg IMG_20251209_144525_00_555.jpg IMG_20251209_144526_00_556.jpg
+
+# Delete without reassigning GPX
+python scripts/delete_individual_photos.py --no-reassign IMG_20251209_144524_00_554.jpg
 ```
 
 # photos to delete
@@ -83,10 +88,10 @@ python scripts/delete_individual_photos.py IMG_20251209_144341_00_547.jpg IMG_20
 - Finds the photos in `data/index.json` by filename
 - Deletes photo files from `photos/output/`
 - Removes photo entries from `data/index.json`
-- Re-processes the folder(s) containing the deleted photos
-- Re-matches remaining photos with GPX data
-- Updates EXIF GPS tags for remaining photos
-- Updates `data/index.json` with new GPS coordinates
+- Re-processes the folder(s) containing the deleted photos (unless `--no-reassign`)
+- Re-matches remaining photos with GPX data (unless `--no-reassign`)
+- Updates EXIF GPS tags for remaining photos (unless `--no-reassign`)
+- Updates `data/index.json` with new GPS coordinates (unless `--no-reassign`)
 
 **Note:** The script will automatically find which folder each photo belongs to and re-process that entire folder to ensure all remaining photos are properly matched with GPX data.
 

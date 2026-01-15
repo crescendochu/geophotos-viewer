@@ -14,6 +14,7 @@ let viewer = null;
 let map = null;
 let activeMarker = null;
 let photoColors = {}; // Map photo index to route color
+let lineVisible = true;
 
 // DOM Elements
 const elements = {
@@ -25,6 +26,7 @@ const elements = {
   minimap: document.getElementById('minimap'),
   minimapContainer: document.getElementById('minimap-container'),
   minimapToggle: document.getElementById('minimap-toggle'),
+  lineToggle: document.getElementById('line-toggle'),
   prevBtn: document.getElementById('prev-btn'),
   nextBtn: document.getElementById('next-btn'),
   currentIndex: document.getElementById('current-index'),
@@ -252,6 +254,8 @@ function initMinimap() {
       }
     });
     
+    updateLineVisibility();
+    
     // Glow layer for all points
     map.addLayer({
       id: 'photos-glow',
@@ -429,6 +433,20 @@ function updateActiveMarker(index) {
 }
 
 // ========================================
+// Toggle Route Lines
+// ========================================
+function updateLineVisibility() {
+  if (!map || !map.getLayer('photos-path')) return;
+  map.setLayoutProperty('photos-path', 'visibility', lineVisible ? 'visible' : 'none');
+  
+  if (elements.lineToggle) {
+    elements.lineToggle.classList.toggle('is-off', !lineVisible);
+    elements.lineToggle.title = lineVisible ? 'Hide route lines' : 'Show route lines';
+    elements.lineToggle.setAttribute('aria-pressed', String(lineVisible));
+  }
+}
+
+// ========================================
 // Initialize Controls
 // ========================================
 function initControls() {
@@ -463,6 +481,14 @@ function initControls() {
       }
     }, 300);
   });
+  
+  // Line toggle - show/hide route lines
+  if (elements.lineToggle) {
+    elements.lineToggle.addEventListener('click', () => {
+      lineVisible = !lineVisible;
+      updateLineVisibility();
+    });
+  }
 }
 
 // ========================================
