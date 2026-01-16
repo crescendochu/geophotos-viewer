@@ -15,6 +15,9 @@ let map = null;
 let activeMarker = null;
 let photoColors = {}; // Map photo index to route color
 let lineVisible = true;
+let splitRatio = 0.5; // 0 = all panorama, 1 = all map (default 50/50)
+let isDragging = false;
+let debugExpanded = true;
 
 // DOM Elements
 const elements = {
@@ -32,11 +35,16 @@ const elements = {
   currentIndex: document.getElementById('current-index'),
   totalCount: document.getElementById('total-count'),
   // Debug elements
+  debugPanel: document.getElementById('debug-panel'),
+  debugContent: document.getElementById('debug-content'),
+  debugToggle: document.getElementById('debug-toggle'),
   debugFolder: document.getElementById('debug-folder'),
   debugFile: document.getElementById('debug-file'),
   debugCoords: document.getElementById('debug-coords'),
   debugGpx: document.getElementById('debug-gpx'),
-  debugColor: document.getElementById('debug-color')
+  debugColor: document.getElementById('debug-color'),
+  // Split divider
+  splitDivider: document.getElementById('split-divider')
 };
 
 // ========================================
@@ -473,6 +481,16 @@ function initControls() {
     const container = document.querySelector('.viewer-container');
     container.classList.toggle('split-screen');
     
+    // Show/hide divider and update layout
+    if (container.classList.contains('split-screen')) {
+      elements.splitDivider.style.display = 'block';
+      // Reset to 50/50 split when entering split-screen mode
+      splitRatio = 0.5;
+      updateSplitLayout();
+    } else {
+      elements.splitDivider.style.display = 'none';
+    }
+    
     // Resize both map and panorama after transition
     setTimeout(() => {
       map.resize();
@@ -489,6 +507,120 @@ function initControls() {
       updateLineVisibility();
     });
   }
+  
+  // Debug toggle - minimize/expand
+  if (elements.debugToggle) {
+    elements.debugToggle.addEventListener('click', () => {
+      debugExpanded = !debugExpanded;
+      elements.debugPanel.classList.toggle('collapsed', !debugExpanded);
+      elements.debugContent.style.display = debugExpanded ? 'block' : 'none';
+      
+      // Rotate icon
+      const icon = elements.debugToggle.querySelector('svg');
+      icon.style.transform = debugExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+    });
+  }
+  
+  // Split divider drag functionality
+  initSplitDivider();
+}
+
+// ========================================
+// Split Divider Control
+// ========================================
+function initSplitDivider() {
+  const divider = elements.splitDivider;
+  if (!divider) return;
+  
+  divider.addEventListener('mousedown', startDrag);
+  document.addEventListener('mousemove', drag);
+  document.addEventListener('mouseup', stopDrag);
+  
+  // Touch support
+  divider.addEventListener('touchstart', startDrag, { passive: false });
+  document.addEventListener('touchmove', drag, { passive: false });
+  document.addEventListener('touchend', stopDrag);
+}
+
+function startDrag(e) {
+  const container = document.querySelector('.viewer-container');
+  if (!container.classList.contains('split-screen')) return;
+  
+  isDragging = true;
+  e.preventDefault();
+  document.body.style.cursor = 'row-resize';
+  document.body.style.userSelect = 'none';
+  
+  // Disable transitions during drag for smooth interaction
+  const panoramaContainer = document.querySelector('.panorama-container');
+  const minimapContainer = document.querySelector('.minimap-container');
+  const divider = elements.splitDivider;
+  
+  panoramaContainer.style.transition = 'none';
+  minimapContainer.style.transition = 'none';
+  divider.style.transition = 'none';
+}
+
+function drag(e) {
+  if (!isDragging) return;
+  
+  e.preventDefault();
+  const container = document.querySelector('.viewer-container');
+  if (!container.classList.contains('split-screen')) return;
+  
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const containerRect = container.getBoundingClientRect();
+  const relativeY = clientY - containerRect.top;
+  const containerHeight = containerRect.height;
+  
+  // Calculate split ratio (0 = all panorama at top, 1 = all map at bottom)
+  splitRatio = Math.max(0.1, Math.min(0.9, relativeY / containerHeight));
+  
+  updateSplitLayout();
+}
+
+function stopDrag() {
+  if (!isDragging) return;
+  
+  isDragging = false;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  
+  // Re-enable transitions after drag
+  const panoramaContainer = document.querySelector('.panorama-container');
+  const minimapContainer = document.querySelector('.minimap-container');
+  const divider = elements.splitDivider;
+  
+  panoramaContainer.style.transition = '';
+  minimapContainer.style.transition = '';
+  divider.style.transition = '';
+}
+
+function updateSplitLayout() {
+  const container = document.querySelector('.viewer-container');
+  if (!container.classList.contains('split-screen')) return;
+  
+  const panoramaHeight = splitRatio * 100;
+  const mapHeight = (1 - splitRatio) * 100;
+  const dividerPosition = splitRatio * 100;
+  
+  // Update panorama container
+  const panoramaContainer = document.querySelector('.panorama-container');
+  panoramaContainer.style.height = `${panoramaHeight}%`;
+  
+  // Update minimap container
+  const minimapContainer = document.querySelector('.minimap-container');
+  minimapContainer.style.top = `${dividerPosition}%`;
+  minimapContainer.style.height = `${mapHeight}%`;
+  
+  // Update divider position
+  elements.splitDivider.style.top = `${dividerPosition}%`;
+  
+  // Resize map and panorama
+  setTimeout(() => {
+    if (map) map.resize();
+    if (viewer) viewer.resize();
+  }, 0);
 }
 
 // ========================================
