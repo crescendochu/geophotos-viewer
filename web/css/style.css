@@ -379,30 +379,97 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 50%;
-  height: 100%;
+  right: 0;
+  width: 100%;
+  height: 50%;
+  transition: height var(--transition-medium);
 }
 
 .viewer-container.split-screen .minimap-container {
-  top: 0;
-  left: 50%;
+  top: 50%;
+  left: 0;
   right: 0;
   bottom: 0;
-  width: 50%;
-  height: 100%;
+  width: 100%;
+  height: 50%;
   border-radius: 0;
   border: none;
-  border-left: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-subtle);
+  transition: top var(--transition-medium), height var(--transition-medium);
 }
 
 .viewer-container.split-screen .nav-controls {
-  left: 25%;
+  left: 50%;
+  bottom: calc(50% + 2rem);
+  transform: translateX(-50%);
+  transition: bottom var(--transition-medium);
 }
 
 .viewer-container.split-screen .debug-panel {
   left: 1rem;
-  bottom: 6rem;
-  max-width: calc(50% - 2rem);
+  bottom: calc(50% + 6rem);
+  max-width: calc(100% - 2rem);
+  transition: bottom var(--transition-medium);
+}
+
+/* Split divider */
+.split-divider {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  width: 100%;
+  height: 8px;
+  z-index: 150;
+  cursor: row-resize;
+  background: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.viewer-container.split-screen .split-divider {
+  display: block;
+}
+
+.split-divider-handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.split-divider:hover .split-divider-handle,
+.split-divider:active .split-divider-handle {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.split-divider-handle::before,
+.split-divider-handle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+}
+
+.split-divider-handle::before {
+  top: 2px;
+}
+
+.split-divider-handle::after {
+  bottom: 2px;
 }
 
 #minimap {
@@ -607,13 +674,61 @@ body {
   color: var(--text-secondary);
   z-index: 100;
   max-width: 400px;
+  transition: all var(--transition-medium);
+}
+
+.debug-panel.collapsed {
+  padding: 0.75rem 1rem;
+}
+
+.debug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.debug-panel.collapsed .debug-header {
+  margin-bottom: 0;
 }
 
 .debug-title {
   font-weight: bold;
   color: var(--accent-primary);
-  margin-bottom: 0.5rem;
   font-size: 0.8rem;
+}
+
+.debug-toggle {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: 
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+  padding: 0;
+}
+
+.debug-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.debug-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--transition-medium);
+}
+
+.debug-content {
+  display: block;
 }
 
 .debug-row {

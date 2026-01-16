@@ -82,14 +82,28 @@
       </button>
     </div>
 
+    <!-- Resizable divider (only visible in split-screen mode) -->
+    <div class="split-divider" id="split-divider">
+      <div class="split-divider-handle"></div>
+    </div>
+
     <!-- Debug info panel -->
     <div class="debug-panel" id="debug-panel">
-      <div class="debug-title">Debug Info</div>
-      <div class="debug-row"><span>Folder:</span> <span id="debug-folder">-</span></div>
-      <div class="debug-row"><span>File:</span> <span id="debug-file">-</span></div>
-      <div class="debug-row"><span>Coords:</span> <span id="debug-coords">-</span></div>
-      <div class="debug-row"><span>GPX File:</span> <span id="debug-gpx">-</span></div>
-      <div class="debug-row"><span>Route Color:</span> <span id="debug-color">-</span></div>
+      <div class="debug-header">
+        <div class="debug-title">Debug Info</div>
+        <button class="debug-toggle" id="debug-toggle" title="Minimize/Expand debug info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 15l-6-6-6 6"/>
+          </svg>
+        </button>
+      </div>
+      <div class="debug-content" id="debug-content">
+        <div class="debug-row"><span>Folder:</span> <span id="debug-folder">-</span></div>
+        <div class="debug-row"><span>File:</span> <span id="debug-file">-</span></div>
+        <div class="debug-row"><span>Coords:</span> <span id="debug-coords">-</span></div>
+        <div class="debug-row"><span>GPX File:</span> <span id="debug-gpx">-</span></div>
+        <div class="debug-row"><span>Route Color:</span> <span id="debug-color">-</span></div>
+      </div>
     </div>
   </div>
 
