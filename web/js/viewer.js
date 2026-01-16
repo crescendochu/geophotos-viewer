@@ -61,11 +61,14 @@ async function init() {
       return;
     }
     
-    // Load data
+    // Load data with aggressive cache busting
+    const cacheBuster = `?t=${Date.now()}&v=${Math.random()}`;
     const [neighborhoodsData, indexData] = await Promise.all([
-      fetch('../data/neighborhoods.json').then(r => r.json()),
-      fetch(`../data/index.json?t=${Date.now()}`).then(r => r.json())
+      fetch(`../data/neighborhoods.json${cacheBuster}`).then(r => r.json()),
+      fetch(`../data/index.json${cacheBuster}`).then(r => r.json())
     ]);
+    
+    console.log(`Loaded index.json with ${indexData.photos?.length || 0} photos at ${new Date().toISOString()}`);
     
     // Find neighborhood
     neighborhood = neighborhoodsData.neighborhoods.find(n => n.id === neighborhoodId);
@@ -156,6 +159,12 @@ function initPanorama() {
 // Initialize Mapbox Minimap
 // ========================================
 function initMinimap() {
+  // Destroy existing map if it exists
+  if (map) {
+    map.remove();
+    map = null;
+  }
+  
   map = new mapboxgl.Map({
     container: 'minimap',
     style: 'mapbox://styles/mapbox/dark-v11',
@@ -164,7 +173,21 @@ function initMinimap() {
     attributionControl: false
   });
   
-  map.on('load', () => {
+    // Use 'once' instead of 'on' to ensure this only runs once
+  map.once('load', () => {
+    console.log(`Map loaded, processing ${photos.length} photos`);
+    
+    // Remove existing source and layers if they exist (in case of reload)
+    if (map.getSource('photos')) {
+      console.log('Removing existing photos source and layers');
+      // Remove layers first
+      if (map.getLayer('photos-path')) map.removeLayer('photos-path');
+      if (map.getLayer('photos-glow')) map.removeLayer('photos-glow');
+      if (map.getLayer('photos-points')) map.removeLayer('photos-points');
+      // Remove source
+      map.removeSource('photos');
+    }
+    
     // Group photos by folder (each folder = one route/direction)
     const routesByFolder = {};
     
@@ -177,12 +200,11 @@ function initMinimap() {
       }
     });
     
+    console.log(`Grouped photos into ${Object.keys(routesByFolder).length} routes`);
+    
     // Generate distinct colors for each route
     const folderNames = Object.keys(routesByFolder);
     const routeColors = generateRouteColors(folderNames.length);
-    
-    // Track coordinate usage to offset overlapping points
-    const coordCounts = {};
     
     // Build features for each route
     const allFeatures = [];
@@ -193,6 +215,9 @@ function initMinimap() {
       
       // Sort by timestamp within folder
       routePhotos.sort((a, b) => new Date(a.photo.timestamp) - new Date(b.photo.timestamp));
+      
+      // Track coordinate usage WITHIN THIS ROUTE ONLY for offsetting overlapping points
+      const routeCoordCounts = {};
       
       // Create line for this route (using original coordinates)
       const lineCoords = routePhotos.map(r => [r.photo.lon, r.photo.lat]);
@@ -207,20 +232,21 @@ function initMinimap() {
         });
       }
       
-      // Create points for this route with offset for overlapping coords
+      // Create points for this route with offset for overlapping coords WITHIN THIS ROUTE
       routePhotos.forEach(r => {
         const key = `${r.photo.lat.toFixed(6)},${r.photo.lon.toFixed(6)}`;
-        if (!coordCounts[key]) {
-          coordCounts[key] = 0;
+        if (!routeCoordCounts[key]) {
+          routeCoordCounts[key] = 0;
         }
-        const count = coordCounts[key];
-        coordCounts[key]++;
+        const count = routeCoordCounts[key];
+        routeCoordCounts[key]++;
         
         // Store color for this photo (for debug display)
         photoColors[r.index] = color;
         
-        // Apply spiral offset for overlapping points
-        const offset = getPointOffset(count);
+        // Apply spiral offset for overlapping points WITHIN THE SAME ROUTE
+        // Only offset if there are multiple photos at the same location in this route
+        const offset = count > 0 ? getPointOffset(count) : { lat: 0, lon: 0 };
         
         allFeatures.push({
           type: 'Feature',
@@ -236,6 +262,10 @@ function initMinimap() {
         });
       });
     });
+    
+    const pointCount = allFeatures.filter(f => f.geometry.type === 'Point').length;
+    const lineCount = allFeatures.filter(f => f.geometry.type === 'LineString').length;
+    console.log(`Adding ${allFeatures.length} features to map (${pointCount} points, ${lineCount} lines)`);
     
     map.addSource('photos', {
       type: 'geojson',

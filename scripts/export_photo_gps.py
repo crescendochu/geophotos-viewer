@@ -38,9 +38,49 @@ def load_index(index_path: Path) -> Dict:
         return json.load(f)
 
 
-def filter_photos(index: Dict, date: Optional[str] = None, folder: Optional[str] = None) -> List[Dict]:
-    """Filter photos from index based on date or folder."""
+def filter_photos(
+    index: Dict, 
+    date: Optional[str] = None, 
+    folder: Optional[str] = None,
+    neighborhood: Optional[Dict] = None
+) -> List[Dict]:
+    """Filter photos from index based on date, folder, or neighborhood."""
     photos = index.get('photos', [])
+    
+    if neighborhood:
+        # Filter by neighborhood criteria
+        if neighborhood.get('date'):
+            photos = [p for p in photos if p.get('date') == neighborhood['date']]
+        
+        # Filter by bounds if available
+        if neighborhood.get('bounds'):
+            bounds = neighborhood['bounds']
+            photos = [
+                p for p in photos 
+                if (p.get('lat') and p.get('lon') and
+                    bounds['minLat'] <= p['lat'] <= bounds['maxLat'] and
+                    bounds['minLon'] <= p['lon'] <= bounds['maxLon'])
+            ]
+        
+        # Filter by time range if available
+        if neighborhood.get('timeRange'):
+            time_range = neighborhood['timeRange']
+            try:
+                start_time = datetime.fromisoformat(time_range['start'].replace('Z', '+00:00'))
+                end_time = datetime.fromisoformat(time_range['end'].replace('Z', '+00:00'))
+                
+                filtered = []
+                for p in photos:
+                    if p.get('timestamp'):
+                        try:
+                            photo_time = datetime.fromisoformat(p['timestamp'].replace('Z', '+00:00'))
+                            if start_time <= photo_time <= end_time:
+                                filtered.append(p)
+                        except:
+                            pass
+                photos = filtered
+            except Exception as e:
+                print(f"  Warning: Could not parse time range: {e}")
     
     if date:
         photos = [p for p in photos if p.get('date') == date]
@@ -99,11 +139,22 @@ def create_geojson(photos: List[Dict]) -> Dict:
     }
 
 
+def load_neighborhoods(neighborhoods_path: Path) -> Dict:
+    """Load the neighborhoods.json file."""
+    if not neighborhoods_path.exists():
+        print(f"Error: {neighborhoods_path} not found")
+        sys.exit(1)
+    
+    with open(neighborhoods_path, 'r') as f:
+        return json.load(f)
+
+
 def export_geojson(
     index_path: Path,
     output_path: Path,
     date: Optional[str] = None,
-    folder: Optional[str] = None
+    folder: Optional[str] = None,
+    neighborhood: Optional[Dict] = None
 ):
     """Export photo GPS coordinates to GeoJSON."""
     print("="*60)
@@ -115,6 +166,8 @@ def export_geojson(
         print(f"Filter date: {date}")
     if folder:
         print(f"Filter folder: {folder}")
+    if neighborhood:
+        print(f"Filter neighborhood: {neighborhood.get('name', 'Unknown')} ({neighborhood.get('id', 'unknown')})")
     print("="*60 + "\n")
     
     # Load index
@@ -123,7 +176,7 @@ def export_geojson(
     print(f"  Total photos in index: {index.get('total_photos', 0)}")
     
     # Filter photos
-    photos = filter_photos(index, date=date, folder=folder)
+    photos = filter_photos(index, date=date, folder=folder, neighborhood=neighborhood)
     print(f"  Photos to export: {len(photos)}")
     
     if not photos:
@@ -175,6 +228,11 @@ def main():
         default=None,
         help='Path to index.json (default: data/index.json)'
     )
+    parser.add_argument(
+        '--neighborhood',
+        type=str,
+        help='Filter by neighborhood ID (e.g., shinjuku, kinshicho)'
+    )
     
     args = parser.parse_args()
     
@@ -185,11 +243,26 @@ def main():
     else:
         index_path = repo_root / "data" / "index.json"
     
+    neighborhoods_path = repo_root / "data" / "neighborhoods.json"
+    
+    # Load neighborhood if specified
+    neighborhood = None
+    if args.neighborhood:
+        neighborhoods_data = load_neighborhoods(neighborhoods_path)
+        neighborhood = next(
+            (n for n in neighborhoods_data.get('neighborhoods', []) if n.get('id') == args.neighborhood),
+            None
+        )
+        if not neighborhood:
+            print(f"Error: Neighborhood '{args.neighborhood}' not found")
+            print(f"Available neighborhoods: {', '.join(n.get('id') for n in neighborhoods_data.get('neighborhoods', []))}")
+            sys.exit(1)
+    
     output_path = Path(args.output)
     if not output_path.is_absolute():
         output_path = repo_root / output_path
     
-    export_geojson(index_path, output_path, date=args.date, folder=args.folder)
+    export_geojson(index_path, output_path, date=args.date, folder=args.folder, neighborhood=neighborhood)
 
 
 if __name__ == "__main__":
