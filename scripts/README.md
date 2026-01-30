@@ -178,6 +178,43 @@ Edit the constants at the top of the script to adjust:
 
 **Note:** The script works with equirectangular 360° images. Face detection may have some limitations with faces near the edges of the equirectangular projection due to distortion.
 
+### `export_photo_db.py`
+Exports a flat database of all photos to CSV and/or GeoJSON for easier management (spreadsheets, GIS, analysis). Assigns each photo to a neighborhood using the same date + `timeRange` logic as the web app. **Source:** `data/index.json` only; row count matches the index when no filter is used (~2000).
+
+**Output columns / properties:**
+- `photo_id` — Short unique ID: filename without `IMG_` or extension (e.g. `20251209_125542_00_314`)
+- `neighborhood_id`, `neighborhood_name`, `neighborhood_name_ja` — Assigned neighborhood (empty if none)
+- `lon`, `lat`, `ele` — Coordinates and elevation
+- `date`, `timestamp` — Capture date and full ISO timestamp
+- `filename`, `folder`, `path` — File location within `photos/output/`
+- `gpx_file` — GPX track used for geotagging
+
+**Usage:**
+```bash
+# Export both CSV and GeoJSON (default: data/photos_db.csv, data/photos_db.geojson)
+python scripts/export_photo_db.py
+
+# CSV only
+python scripts/export_photo_db.py --csv-only
+
+# GeoJSON only
+python scripts/export_photo_db.py --geojson-only
+
+# Filter by date or neighborhood
+python scripts/export_photo_db.py --date 2025-12-09
+python scripts/export_photo_db.py --neighborhood kinshicho
+
+# Custom output paths
+python scripts/export_photo_db.py --csv my_photos.csv --geojson my_photos.geojson
+```
+
+**What it does:**
+- Reads `data/index.json` and `data/neighborhoods.json`
+- Matches each photo to a neighborhood (date + optional `timeRange`)
+- With no `--date` / `--neighborhood` filter, exports **all** index photos (row count = index size)
+- Writes CSV (all columns above) and/or GeoJSON (point features with same properties)
+- Skips photos without `lat`/`lon` in GeoJSON only; CSV includes every indexed photo
+
 ### `export_photo_gps.py` and `import_snapped_gps.py`
 Export photo GPS coordinates to GeoJSON for snapping in QGIS, then import the snapped coordinates back. Useful for correcting GPS drift by snapping photo locations to OpenStreetMap features (roads, paths, etc.).
 

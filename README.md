@@ -18,7 +18,9 @@ geophotos-viewer/
 │   └── viewer.html       # 360° panorama viewer
 ├── data/                 # Generated and config data
 │   ├── index.json        # Auto-generated photo index (GPS, timestamps)
-│   └── neighborhoods.json # Manual config: neighborhood definitions
+│   ├── neighborhoods.json # Manual config: neighborhood definitions
+│   ├── photos_db.csv     # Optional: photo DB export (see scripts/export_photo_db.py)
+│   └── photos_db.geojson # Optional: same as GeoJSON for GIS/spreadsheets
 ├── photos/
 │   ├── input/            # Drop raw photos here for processing
 │   └── output/           # Tagged photos (organized by date/folder)
