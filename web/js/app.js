@@ -182,7 +182,7 @@ function initCardMap(neighborhood) {
         }
         
         // Create points for this route with offset for overlapping coords
-        routePhotos.forEach(p => {
+        routePhotos.forEach((p, routePhotoIndex) => {
           const key = `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`;
           if (!coordCounts[key]) {
             coordCounts[key] = 0;
@@ -193,9 +193,29 @@ function initCardMap(neighborhood) {
           // Apply spiral offset for overlapping points
           const offset = getPointOffset(count);
           
+          // Calculate bearing to next photo (direction of travel)
+          let bearing = 0; // Default to North if no direction can be determined
+          if (routePhotoIndex < routePhotos.length - 1) {
+            const nextPhoto = routePhotos[routePhotoIndex + 1];
+            bearing = calculateBearing(
+              p.lat, p.lon,
+              nextPhoto.lat, nextPhoto.lon
+            );
+          } else if (routePhotoIndex > 0) {
+            // Last photo: use bearing from previous photo
+            const prevPhoto = routePhotos[routePhotoIndex - 1];
+            bearing = calculateBearing(
+              prevPhoto.lat, prevPhoto.lon,
+              p.lat, p.lon
+            );
+          }
+          
           allFeatures.push({
             type: 'Feature',
-            properties: { color: color },
+            properties: { 
+              color: color,
+              bearing: bearing
+            },
             geometry: {
               type: 'Point',
               coordinates: [p.lon + offset.lon, p.lat + offset.lat]
@@ -229,34 +249,83 @@ function initCardMap(neighborhood) {
         }
       });
       
-      // Glow layer for points
-      map.addLayer({
-        id: `points-glow-${neighborhood.id}`,
-        type: 'circle',
-        source: `route-${neighborhood.id}`,
-        filter: ['==', '$type', 'Point'],
-        paint: {
-          'circle-radius': 5,
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 0.3,
-          'circle-blur': 1
-        }
-      });
+      // Create arrow icon using canvas (Mapbox doesn't support SVG)
+      const iconName = `arrow-icon-${neighborhood.id}`;
+      if (!map.hasImage(iconName)) {
+        const size = 24;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw arrow pointing UP (North = 0 degrees, Mapbox rotates clockwise from North)
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        // Arrow body (vertical line pointing up)
+        ctx.beginPath();
+        ctx.moveTo(size / 2, size - 4);
+        ctx.lineTo(size / 2, 6);
+        ctx.stroke();
+        
+        // Arrow head pointing up
+        ctx.beginPath();
+        ctx.moveTo(size / 2 - 5, 10);
+        ctx.lineTo(size / 2, 4);
+        ctx.lineTo(size / 2 + 5, 10);
+        ctx.stroke();
+        
+        // Create image data from canvas
+        const imageData = ctx.getImageData(0, 0, size, size);
+        map.addImage(iconName, imageData, { sdf: true });
+      }
       
-      // Points layer
-      map.addLayer({
-        id: `points-${neighborhood.id}`,
-        type: 'circle',
-        source: `route-${neighborhood.id}`,
-        filter: ['==', '$type', 'Point'],
-        paint: {
-          'circle-radius': 2.5,
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 0.9,
-          'circle-stroke-width': 0.5,
-          'circle-stroke-color': 'rgba(255, 255, 255, 0.5)'
-        }
-      });
+      addArrowLayers();
+      
+      function addArrowLayers() {
+        
+        // Glow layer for arrows (shadow effect)
+        map.addLayer({
+          id: `points-glow-${neighborhood.id}`,
+          type: 'symbol',
+          source: `route-${neighborhood.id}`,
+          filter: ['==', '$type', 'Point'],
+          layout: {
+            'icon-image': iconName,
+            'icon-size': 1.0,
+            'icon-rotate': ['get', 'bearing'],
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true
+          },
+          paint: {
+            'icon-color': ['get', 'color'],
+            'icon-opacity': 0.3
+          }
+        });
+        
+        // Arrows layer
+        map.addLayer({
+          id: `points-${neighborhood.id}`,
+          type: 'symbol',
+          source: `route-${neighborhood.id}`,
+          filter: ['==', '$type', 'Point'],
+          layout: {
+            'icon-image': iconName,
+            'icon-size': 0.6,
+            'icon-rotate': ['get', 'bearing'],
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true
+          },
+          paint: {
+            'icon-color': ['get', 'color'],
+            'icon-opacity': 0.9
+          }
+        });
+      }
       
       // Fit bounds to all points
       if (allCoordinates.length > 0) {
@@ -283,6 +352,21 @@ function formatDate(dateStr) {
     day: 'numeric',
     year: 'numeric'
   });
+}
+
+// Calculate bearing (direction) between two points in degrees
+// Returns bearing from point1 to point2 (0 = North, 90 = East, etc.)
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const lat1Rad = lat1 * Math.PI / 180;
+  const lat2Rad = lat2 * Math.PI / 180;
+  
+  const y = Math.sin(dLon) * Math.cos(lat2Rad);
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - 
+            Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+  
+  const bearing = Math.atan2(y, x);
+  return (bearing * 180 / Math.PI + 360) % 360; // Convert to degrees and normalize to 0-360
 }
 
 // Calculate offset for overlapping points (spiral pattern)

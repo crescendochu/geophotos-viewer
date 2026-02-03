@@ -213,7 +213,12 @@ photos/
 # GPS track files (GPX files)
 gps/
 
+# QGIS project files and exports (ignore directory and common formats)
+QGIS/
+*.qgz
+*.qgs
+*.qgz~
+
 # Large data file (optional - uncomment if you want to exclude it)
 # data/index.json
 .DS_Store
-photos/.DS_Store

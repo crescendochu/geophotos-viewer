@@ -32,8 +32,7 @@ const elements = {
   lineToggle: document.getElementById('line-toggle'),
   prevBtn: document.getElementById('prev-btn'),
   nextBtn: document.getElementById('next-btn'),
-  currentIndex: document.getElementById('current-index'),
-  totalCount: document.getElementById('total-count'),
+  navControls: document.querySelector('.nav-controls'),
   // Debug elements
   debugPanel: document.getElementById('debug-panel'),
   debugContent: document.getElementById('debug-content'),
@@ -61,11 +60,14 @@ async function init() {
       return;
     }
     
-    // Load data
+    // Load data with aggressive cache busting
+    const cacheBuster = `?t=${Date.now()}&v=${Math.random()}`;
     const [neighborhoodsData, indexData] = await Promise.all([
-      fetch('../data/neighborhoods.json').then(r => r.json()),
-      fetch(`../data/index.json?t=${Date.now()}`).then(r => r.json())
+      fetch(`../data/neighborhoods.json${cacheBuster}`).then(r => r.json()),
+      fetch(`../data/index.json${cacheBuster}`).then(r => r.json())
     ]);
+    
+    console.log(`Loaded index.json with ${indexData.photos?.length || 0} photos at ${new Date().toISOString()}`);
     
     // Find neighborhood
     neighborhood = neighborhoodsData.neighborhoods.find(n => n.id === neighborhoodId);
@@ -94,7 +96,6 @@ async function init() {
     document.title = `${neighborhood.name} - Tokyo Walks`;
     elements.neighborhoodName.textContent = neighborhood.name;
     elements.neighborhoodNameJa.textContent = neighborhood.nameJa;
-    elements.totalCount.textContent = photos.length;
     
     // Initialize viewer and map
     initPanorama();
@@ -156,6 +157,12 @@ function initPanorama() {
 // Initialize Mapbox Minimap
 // ========================================
 function initMinimap() {
+  // Destroy existing map if it exists
+  if (map) {
+    map.remove();
+    map = null;
+  }
+  
   map = new mapboxgl.Map({
     container: 'minimap',
     style: 'mapbox://styles/mapbox/dark-v11',
@@ -164,7 +171,21 @@ function initMinimap() {
     attributionControl: false
   });
   
-  map.on('load', () => {
+    // Use 'once' instead of 'on' to ensure this only runs once
+  map.once('load', () => {
+    console.log(`Map loaded, processing ${photos.length} photos`);
+    
+    // Remove existing source and layers if they exist (in case of reload)
+    if (map.getSource('photos')) {
+      console.log('Removing existing photos source and layers');
+      // Remove layers first
+      if (map.getLayer('photos-path')) map.removeLayer('photos-path');
+      if (map.getLayer('photos-glow')) map.removeLayer('photos-glow');
+      if (map.getLayer('photos-points')) map.removeLayer('photos-points');
+      // Remove source
+      map.removeSource('photos');
+    }
+    
     // Group photos by folder (each folder = one route/direction)
     const routesByFolder = {};
     
@@ -177,12 +198,11 @@ function initMinimap() {
       }
     });
     
+    console.log(`Grouped photos into ${Object.keys(routesByFolder).length} routes`);
+    
     // Generate distinct colors for each route
     const folderNames = Object.keys(routesByFolder);
     const routeColors = generateRouteColors(folderNames.length);
-    
-    // Track coordinate usage to offset overlapping points
-    const coordCounts = {};
     
     // Build features for each route
     const allFeatures = [];
@@ -193,6 +213,9 @@ function initMinimap() {
       
       // Sort by timestamp within folder
       routePhotos.sort((a, b) => new Date(a.photo.timestamp) - new Date(b.photo.timestamp));
+      
+      // Track coordinate usage WITHIN THIS ROUTE ONLY for offsetting overlapping points
+      const routeCoordCounts = {};
       
       // Create line for this route (using original coordinates)
       const lineCoords = routePhotos.map(r => [r.photo.lon, r.photo.lat]);
@@ -207,27 +230,46 @@ function initMinimap() {
         });
       }
       
-      // Create points for this route with offset for overlapping coords
-      routePhotos.forEach(r => {
+      // Create points for this route with offset for overlapping coords WITHIN THIS ROUTE
+      routePhotos.forEach((r, routePhotoIndex) => {
         const key = `${r.photo.lat.toFixed(6)},${r.photo.lon.toFixed(6)}`;
-        if (!coordCounts[key]) {
-          coordCounts[key] = 0;
+        if (!routeCoordCounts[key]) {
+          routeCoordCounts[key] = 0;
         }
-        const count = coordCounts[key];
-        coordCounts[key]++;
+        const count = routeCoordCounts[key];
+        routeCoordCounts[key]++;
         
         // Store color for this photo (for debug display)
         photoColors[r.index] = color;
         
-        // Apply spiral offset for overlapping points
-        const offset = getPointOffset(count);
+        // Apply spiral offset for overlapping points WITHIN THE SAME ROUTE
+        // Only offset if there are multiple photos at the same location in this route
+        const offset = count > 0 ? getPointOffset(count) : { lat: 0, lon: 0 };
+        
+        // Calculate bearing to next photo (direction of travel)
+        let bearing = 0; // Default to North if no direction can be determined
+        if (routePhotoIndex < routePhotos.length - 1) {
+          const nextPhoto = routePhotos[routePhotoIndex + 1].photo;
+          bearing = calculateBearing(
+            r.photo.lat, r.photo.lon,
+            nextPhoto.lat, nextPhoto.lon
+          );
+        } else if (routePhotoIndex > 0) {
+          // Last photo: use bearing from previous photo
+          const prevPhoto = routePhotos[routePhotoIndex - 1].photo;
+          bearing = calculateBearing(
+            prevPhoto.lat, prevPhoto.lon,
+            r.photo.lat, r.photo.lon
+          );
+        }
         
         allFeatures.push({
           type: 'Feature',
           properties: { 
             index: r.index, 
             color: color,
-            routeIndex: routeIndex
+            routeIndex: routeIndex,
+            bearing: bearing
           },
           geometry: {
             type: 'Point',
@@ -236,6 +278,10 @@ function initMinimap() {
         });
       });
     });
+    
+    const pointCount = allFeatures.filter(f => f.geometry.type === 'Point').length;
+    const lineCount = allFeatures.filter(f => f.geometry.type === 'LineString').length;
+    console.log(`Adding ${allFeatures.length} features to map (${pointCount} points, ${lineCount} lines)`);
     
     map.addSource('photos', {
       type: 'geojson',
@@ -264,51 +310,99 @@ function initMinimap() {
     
     updateLineVisibility();
     
-    // Glow layer for all points
-    map.addLayer({
-      id: 'photos-glow',
-      type: 'circle',
-      source: 'photos',
-      filter: ['==', '$type', 'Point'],
-      paint: {
-        'circle-radius': 6,
-        'circle-color': ['get', 'color'],
-        'circle-opacity': 0.3,
-        'circle-blur': 1
-      }
-    });
+    // Create arrow icon using canvas (Mapbox doesn't support SVG)
+    if (!map.hasImage('arrow-icon')) {
+      const size = 24;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      
+      // Draw arrow pointing UP (North = 0 degrees, Mapbox rotates clockwise from North)
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      // Arrow body (vertical line pointing up)
+      ctx.beginPath();
+      ctx.moveTo(size / 2, size - 4);
+      ctx.lineTo(size / 2, 6);
+      ctx.stroke();
+      
+      // Arrow head pointing up
+      ctx.beginPath();
+      ctx.moveTo(size / 2 - 5, 10);
+      ctx.lineTo(size / 2, 4);
+      ctx.lineTo(size / 2 + 5, 10);
+      ctx.stroke();
+      
+      // Create image data from canvas
+      const imageData = ctx.getImageData(0, 0, size, size);
+      map.addImage('arrow-icon', imageData, { sdf: true });
+    }
     
-    // All photo points (on top)
-    map.addLayer({
-      id: 'photos-points',
-      type: 'circle',
-      source: 'photos',
-      filter: ['==', '$type', 'Point'],
-      paint: {
-        'circle-radius': 3.5,
-        'circle-color': ['get', 'color'],
-        'circle-opacity': 1,
-        'circle-stroke-width': 1,
-        'circle-stroke-color': 'rgba(255, 255, 255, 0.6)'
-      }
-    });
+    addArrowLayers();
     
-    // Click handler for points
-    map.on('click', 'photos-points', (e) => {
-      if (e.features && e.features.length > 0) {
-        const index = e.features[0].properties.index;
-        loadPhoto(index);
-      }
-    });
-    
-    // Change cursor on hover
-    map.on('mouseenter', 'photos-points', () => {
-      map.getCanvas().style.cursor = 'pointer';
-    });
-    
-    map.on('mouseleave', 'photos-points', () => {
-      map.getCanvas().style.cursor = '';
-    });
+    function addArrowLayers() {
+      
+      // Glow layer for all arrows (shadow effect)
+      map.addLayer({
+        id: 'photos-glow',
+        type: 'symbol',
+        source: 'photos',
+        filter: ['==', '$type', 'Point'],
+        layout: {
+          'icon-image': 'arrow-icon',
+          'icon-size': 1.2,
+          'icon-rotate': ['get', 'bearing'],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true
+        },
+        paint: {
+          'icon-color': ['get', 'color'],
+          'icon-opacity': 0.3
+        }
+      });
+      
+      // All photo arrows (on top)
+      map.addLayer({
+        id: 'photos-points',
+        type: 'symbol',
+        source: 'photos',
+        filter: ['==', '$type', 'Point'],
+        layout: {
+          'icon-image': 'arrow-icon',
+          'icon-size': 0.8,
+          'icon-rotate': ['get', 'bearing'],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true
+        },
+        paint: {
+          'icon-color': ['get', 'color'],
+          'icon-opacity': 1
+        }
+      });
+      
+      // Click handler for arrows
+      map.on('click', 'photos-points', (e) => {
+        if (e.features && e.features.length > 0) {
+          const index = e.features[0].properties.index;
+          loadPhoto(index);
+        }
+      });
+      
+      // Change cursor on hover
+      map.on('mouseenter', 'photos-points', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      
+      map.on('mouseleave', 'photos-points', () => {
+        map.getCanvas().style.cursor = '';
+      });
+    }
     
     // Add active marker (will be updated when photo changes)
     addActiveMarker();
@@ -334,6 +428,11 @@ function initMinimap() {
 function addActiveMarker() {
   const el = document.createElement('div');
   el.className = 'active-marker';
+  
+  // Set initial color to match the first photo's route
+  const initialColor = photoColors[0] || '#22d3ee';
+  el.style.borderColor = initialColor;
+  el.style.boxShadow = `0 0 0 4px ${initialColor}33, 0 2px 8px rgba(0, 0, 0, 0.4)`;
   
   activeMarker = new mapboxgl.Marker({
     element: el,
@@ -388,7 +487,6 @@ function loadPhoto(index) {
   });
   
   // Update UI
-  elements.currentIndex.textContent = index + 1;
   elements.photoInfo.textContent = formatTimestamp(photo.timestamp);
   
   // Update button states
@@ -437,6 +535,12 @@ function updateMapPosition(photo) {
 function updateActiveMarker(index) {
   if (activeMarker && photos[index]) {
     activeMarker.setLngLat([photos[index].lon, photos[index].lat]);
+    
+    // Update color to match the current photo's route
+    const el = activeMarker.getElement();
+    const color = photoColors[index] || '#22d3ee';
+    el.style.borderColor = color;
+    el.style.boxShadow = `0 0 0 4px ${color}33, 0 2px 8px rgba(0, 0, 0, 0.4)`;
   }
 }
 
@@ -489,6 +593,13 @@ function initControls() {
       updateSplitLayout();
     } else {
       elements.splitDivider.style.display = 'none';
+      // Reset nav-controls and debug panel positions when exiting split-screen
+      if (elements.navControls) {
+        elements.navControls.style.bottom = '';
+      }
+      if (elements.debugPanel) {
+        elements.debugPanel.style.bottom = '';
+      }
     }
     
     // Resize both map and panorama after transition
@@ -559,6 +670,12 @@ function startDrag(e) {
   panoramaContainer.style.transition = 'none';
   minimapContainer.style.transition = 'none';
   divider.style.transition = 'none';
+  if (elements.navControls) {
+    elements.navControls.style.transition = 'none';
+  }
+  if (elements.debugPanel) {
+    elements.debugPanel.style.transition = 'none';
+  }
 }
 
 function drag(e) {
@@ -594,6 +711,12 @@ function stopDrag() {
   panoramaContainer.style.transition = '';
   minimapContainer.style.transition = '';
   divider.style.transition = '';
+  if (elements.navControls) {
+    elements.navControls.style.transition = '';
+  }
+  if (elements.debugPanel) {
+    elements.debugPanel.style.transition = '';
+  }
 }
 
 function updateSplitLayout() {
@@ -616,6 +739,17 @@ function updateSplitLayout() {
   // Update divider position
   elements.splitDivider.style.top = `${dividerPosition}%`;
   
+  // Update nav-controls position - position them at bottom of panorama container
+  // Since panorama container is at top with height = splitRatio * 100%,
+  // nav-controls should be at bottom: (1 - splitRatio) * 100% + 2rem from viewport bottom
+  const navControlsBottom = (1 - splitRatio) * 100;
+  elements.navControls.style.bottom = `calc(${navControlsBottom}% + 2rem)`;
+  
+  // Update debug panel position - keep it relative to panorama container bottom
+  if (elements.debugPanel) {
+    elements.debugPanel.style.bottom = `calc(${navControlsBottom}% + 6rem)`;
+  }
+  
   // Resize map and panorama
   setTimeout(() => {
     if (map) map.resize();
@@ -635,6 +769,21 @@ function formatTimestamp(timestamp) {
     minute: '2-digit',
     hour12: true
   });
+}
+
+// Calculate bearing (direction) between two points in degrees
+// Returns bearing from point1 to point2 (0 = North, 90 = East, etc.)
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const lat1Rad = lat1 * Math.PI / 180;
+  const lat2Rad = lat2 * Math.PI / 180;
+  
+  const y = Math.sin(dLon) * Math.cos(lat2Rad);
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - 
+            Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+  
+  const bearing = Math.atan2(y, x);
+  return (bearing * 180 / Math.PI + 360) % 360; // Convert to degrees and normalize to 0-360
 }
 
 // Calculate offset for overlapping points (spiral pattern)

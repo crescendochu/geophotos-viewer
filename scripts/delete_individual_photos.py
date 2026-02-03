@@ -21,11 +21,6 @@ from bisect import bisect_left
 from typing import Optional, List, Tuple
 from dataclasses import dataclass, field
 
-try:
-    import gpxpy
-except ImportError:
-    print("Error: gpxpy module not found. Install it with: pip install gpxpy")
-    sys.exit(1)
 
 # Import configuration from geotag_photos.py
 TIMEZONE_OFFSET = 9
@@ -75,6 +70,12 @@ class FolderResult:
 # Functions (reused from geotag_photos.py)
 def parse_gpx(gpx_path: Path) -> Optional[GPXTrack]:
     """Parse a GPX file and return a GPXTrack object."""
+    try:
+        import gpxpy
+    except ImportError:
+        print("Error: gpxpy not found. Install it in this environment: pip install gpxpy")
+        print("Or run with --no-reassign to skip re-matching GPX for remaining photos.")
+        sys.exit(1)
     try:
         with open(gpx_path, 'r') as f:
             gpx = gpxpy.parse(f)
@@ -626,6 +627,15 @@ def main():
         sys.exit(1)
     
     if reassign_gpx:
+        # Check gpxpy (needed for re-matching)
+        try:
+            import gpxpy
+        except ImportError:
+            print("Error: gpxpy not found for the Python running this script.")
+            print(f"  Python: {sys.executable}")
+            print("  Install with: pip install gpxpy  (using the same Python above)")
+            print("  Or run with --no-reassign to skip re-matching GPX.")
+            sys.exit(1)
         # Check exiftool
         result = subprocess.run(['which', 'exiftool'], capture_output=True, text=True)
         if result.returncode != 0:
