@@ -31,7 +31,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # -----------------------------------------------------------------------------
 # Paths
@@ -39,6 +39,8 @@ from typing import Any, Dict, List, Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEX_PATH = REPO_ROOT / "data" / "index.json"
 NEIGHBORHOODS_PATH = REPO_ROOT / "data" / "neighborhoods.json"
+PHOTOS_OUTPUT = REPO_ROOT / "photos" / "output"
+SNAPPED_POINTS_DIR = REPO_ROOT / "data" / "snapped-points"
 DEFAULT_CSV_PATH = REPO_ROOT / "data" / "photos_db.csv"
 DEFAULT_GEOJSON_PATH = REPO_ROOT / "data" / "photos_db.geojson"
 
@@ -62,6 +64,33 @@ def load_index(path: Path) -> Dict[str, Any]:
 def load_neighborhoods(path: Path) -> List[Dict[str, Any]]:
     data = load_json(path)
     return data.get("neighborhoods", [])
+
+
+def load_snapped_coords(snapped_dir: Path) -> Dict[str, Tuple[float, float]]:
+    """
+    Load path -> (lat, lon) from all snapped-points GeoJSON files.
+    Geometry coordinates are [lon, lat]; we return (lat, lon).
+    Match key: properties.path or properties.photo_id (full path).
+    """
+    out: Dict[str, Tuple[float, float]] = {}
+    if not snapped_dir.is_dir():
+        return out
+    for gj_path in snapped_dir.glob("*.geojson"):
+        try:
+            data = load_json(gj_path)
+        except Exception:
+            continue
+        for feat in data.get("features", []):
+            geom = feat.get("geometry")
+            props = feat.get("properties") or {}
+            if geom and geom.get("type") == "Point":
+                coords = geom.get("coordinates")
+                if coords and len(coords) >= 2:
+                    lon, lat = float(coords[0]), float(coords[1])
+                    key = props.get("path") or props.get("photo_id") or ""
+                    if key:
+                        out[key] = (lat, lon)
+    return out
 
 
 # -----------------------------------------------------------------------------
@@ -134,8 +163,14 @@ def build_db_rows(
     *,
     date_filter: Optional[str] = None,
     neighborhood_filter: Optional[str] = None,
-) -> List[Dict[str, Any]]:
-    """Build list of photo DB rows (flat dicts for CSV/GeoJSON props)."""
+    snapped_map: Optional[Dict[str, Tuple[float, float]]] = None,
+    photos_output: Optional[Path] = None,
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Build list of photo DB rows (flat dicts for CSV/GeoJSON props).
+    Skips photos whose image file does not exist under photos_output.
+    Adds lat_current, lon_current from snapped_map when available.
+    Returns (rows, n_skipped_missing_file).
+    """
     photos = index.get("photos", [])
     folders_by_name: Dict[str, Dict[str, Any]] = {}
     for f in index.get("folders", []):
@@ -149,8 +184,17 @@ def build_db_rows(
             print(f"Error: Unknown neighborhood '{neighborhood_filter}'")
             sys.exit(1)
 
+    snapped = snapped_map or {}
+    out_dir = photos_output or PHOTOS_OUTPUT
+    n_skipped_missing = 0
+
     rows: List[Dict[str, Any]] = []
     for p in sorted(photos, key=lambda x: (x.get("timestamp") or "", x.get("path") or "")):
+        path_val = p.get("path") or ""
+        if path_val and not out_dir.joinpath(path_val).exists():
+            n_skipped_missing += 1
+            continue
+
         nb = get_neighborhood_for_photo(p, neighborhoods)
         nb_id = nb["id"] if nb else ""
         nb_name = nb.get("name", "") if nb else ""
@@ -162,15 +206,19 @@ def build_db_rows(
         folder_data = folders_by_name.get(p.get("folder") or "", {})
         gpx_file = folder_data.get("gpx_file") or ""
 
+        lat_cur, lon_cur = snapped.get(path_val, (None, None)) if path_val else (None, None)
+
         row = {
             "photo_id": photo_id(p),
             "filename": p.get("filename") or "",
             "folder": p.get("folder") or "",
-            "path": p.get("path") or "",
+            "path": path_val,
             "date": p.get("date") or "",
             "timestamp": p.get("timestamp") or "",
             "lat": p.get("lat"),
             "lon": p.get("lon"),
+            "lat_current": lat_cur,
+            "lon_current": lon_cur,
             "ele": p.get("ele"),
             "neighborhood_id": nb_id,
             "neighborhood_name": nb_name,
@@ -179,7 +227,7 @@ def build_db_rows(
         }
         rows.append(row)
 
-    return rows
+    return rows, n_skipped_missing
 
 
 # -----------------------------------------------------------------------------
@@ -193,6 +241,8 @@ CSV_COLUMNS = [
     "neighborhood_name_ja",
     "lon",
     "lat",
+    "lon_current",
+    "lat_current",
     "ele",
     "date",
     "timestamp",
@@ -231,6 +281,10 @@ def build_geojson(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
             props["lat"] = float(props["lat"])
         if "lon" in props:
             props["lon"] = float(props["lon"])
+        if "lat_current" in props:
+            props["lat_current"] = float(props["lat_current"])
+        if "lon_current" in props:
+            props["lon_current"] = float(props["lon_current"])
         if "ele" in props:
             props["ele"] = float(props["ele"])
         features.append({
@@ -305,19 +359,28 @@ def main() -> None:
     neighborhoods = load_neighborhoods(nb_path)
     index_count = len(index.get("photos", []))
 
-    rows = build_db_rows(
+    snapped_map = load_snapped_coords(SNAPPED_POINTS_DIR)
+    if snapped_map:
+        print(f"  Loaded {len(snapped_map)} snapped coordinates from data/snapped-points/")
+
+    rows, n_skipped_missing = build_db_rows(
         index,
         neighborhoods,
         date_filter=args.date,
         neighborhood_filter=args.neighborhood,
+        snapped_map=snapped_map,
+        photos_output=PHOTOS_OUTPUT,
     )
 
+    if n_skipped_missing > 0:
+        print(f"  Skipped {n_skipped_missing} photos (image file no longer exists).")
+
     if not rows:
-        print("No photos match the given filters.")
+        print("No photos match the given filters (or all were skipped).")
         sys.exit(1)
 
-    if not args.date and not args.neighborhood and len(rows) != index_count:
-        print(f"Warning: index has {index_count} photos but export has {len(rows)}. Check for bugs.")
+    if not args.date and not args.neighborhood and len(rows) + n_skipped_missing != index_count:
+        print(f"Warning: index has {index_count} photos but export has {len(rows)} (+ {n_skipped_missing} skipped). Check for bugs.")
 
     write_csv_flag = not args.geojson_only
     write_geojson_flag = not args.csv_only
