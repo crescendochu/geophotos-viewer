@@ -87,6 +87,8 @@ python scripts/delete_individual_photos.py --no-reassign IMG_20251209_144524_00_
 # photos to delete
 python scripts/delete_individual_photos.py IMG_20251209_144341_00_547.jpg IMG_20251209_144357_00_548.jpg IMG_20251209_144412_00_549.jpg IMG_20251209_144426_00_550.jpg IMG_20251209_144441_00_551.jpg IMG_20251209_144455_00_552.jpg IMG_20251209_144510_00_553.jpg IMG_20251209_144524_00_554.jpg
 
+python scripts/delete_individual_photos.py IMG_20251211_152024_00_098.jpg
+
 **What it does:**
 - Finds the photos in `data/index.json` by filename
 - Deletes photo files from `photos/output/`
