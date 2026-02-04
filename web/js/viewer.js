@@ -14,10 +14,16 @@ let viewer = null;
 let map = null;
 let activeMarker = null;
 let photoColors = {}; // Map photo index to route color
+let photoBearings = {}; // Map photo index to auto-calculated bearing
 let lineVisible = true;
 let splitRatio = 0.5; // 0 = all panorama, 1 = all map (default 50/50)
 let isDragging = false;
 let debugExpanded = true;
+
+// Edit mode state
+let editMode = false;
+let headingAdjustments = {}; // Map photo path to { yaw, pitch } adjustments
+const STORAGE_KEY = 'geophotos-heading-adjustments';
 
 // DOM Elements
 const elements = {
@@ -43,7 +49,15 @@ const elements = {
   debugGpx: document.getElementById('debug-gpx'),
   debugColor: document.getElementById('debug-color'),
   // Split divider
-  splitDivider: document.getElementById('split-divider')
+  splitDivider: document.getElementById('split-divider'),
+  // Edit mode elements (will be created dynamically)
+  editPanel: null,
+  editYaw: null,
+  editPitch: null,
+  editAutoBearing: null,
+  editSaveBtn: null,
+  editResetBtn: null,
+  editExportBtn: null
 };
 
 // ========================================
@@ -59,6 +73,9 @@ async function init() {
       window.location.href = 'index.html';
       return;
     }
+    
+    // Load saved heading adjustments from localStorage
+    loadHeadingAdjustments();
     
     // Load data with aggressive cache busting
     const cacheBuster = `?t=${Date.now()}&v=${Math.random()}`;
@@ -92,6 +109,9 @@ async function init() {
       return;
     }
     
+    // Calculate bearings for all photos
+    calculatePhotoBearings();
+    
     // Update UI
     document.title = `${neighborhood.name} - Tokyo Walks`;
     elements.neighborhoodName.textContent = neighborhood.name;
@@ -101,6 +121,7 @@ async function init() {
     initPanorama();
     initMinimap();
     initControls();
+    initEditMode();
     
     // Load first photo
     loadPhoto(0);
@@ -108,6 +129,95 @@ async function init() {
   } catch (error) {
     console.error('Failed to initialize viewer:', error);
   }
+}
+
+// ========================================
+// Heading Adjustments - Load/Save
+// ========================================
+function loadHeadingAdjustments() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      headingAdjustments = JSON.parse(saved);
+      console.log(`Loaded ${Object.keys(headingAdjustments).length} heading adjustments`);
+    }
+  } catch (e) {
+    console.error('Failed to load heading adjustments:', e);
+    headingAdjustments = {};
+  }
+}
+
+function saveHeadingAdjustments() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(headingAdjustments));
+    console.log(`Saved ${Object.keys(headingAdjustments).length} heading adjustments`);
+  } catch (e) {
+    console.error('Failed to save heading adjustments:', e);
+  }
+}
+
+function getPhotoHeading(photo, index) {
+  // Priority 1: Check localStorage for local edits (not yet saved to index.json)
+  const localSaved = headingAdjustments[photo.path];
+  if (localSaved) {
+    return { yaw: localSaved.yaw, pitch: localSaved.pitch, source: 'local' };
+  }
+  
+  // Priority 2: Check index.json data (permanent storage)
+  if (photo.yaw !== undefined || photo.pitch !== undefined) {
+    return { 
+      yaw: photo.yaw || 0, 
+      pitch: photo.pitch || 0, 
+      source: 'index' 
+    };
+  }
+  
+  // Default to center of image (yaw: 0)
+  return { yaw: 0, pitch: 0, source: 'default' };
+}
+
+// ========================================
+// Calculate Bearings for All Photos
+// ========================================
+function calculatePhotoBearings() {
+  // Group photos by folder
+  const photosByFolder = {};
+  photos.forEach((photo, index) => {
+    if (!photosByFolder[photo.folder]) {
+      photosByFolder[photo.folder] = [];
+    }
+    photosByFolder[photo.folder].push({ photo, index });
+  });
+  
+  // Calculate bearing for each photo based on direction to next photo in same folder
+  Object.values(photosByFolder).forEach(folderPhotos => {
+    // Sort by timestamp
+    folderPhotos.sort((a, b) => new Date(a.photo.timestamp) - new Date(b.photo.timestamp));
+    
+    folderPhotos.forEach((item, i) => {
+      let bearing = 0;
+      
+      if (i < folderPhotos.length - 1) {
+        // Calculate bearing to next photo
+        const next = folderPhotos[i + 1].photo;
+        bearing = calculateBearing(
+          item.photo.lat, item.photo.lon,
+          next.lat, next.lon
+        );
+      } else if (i > 0) {
+        // Last photo: use bearing from previous
+        const prev = folderPhotos[i - 1].photo;
+        bearing = calculateBearing(
+          prev.lat, prev.lon,
+          item.photo.lat, item.photo.lon
+        );
+      }
+      
+      photoBearings[item.index] = bearing;
+    });
+  });
+  
+  console.log(`Calculated bearings for ${Object.keys(photoBearings).length} photos`);
 }
 
 // ========================================
@@ -454,11 +564,8 @@ function loadPhoto(index) {
   // Show loading
   elements.loading.classList.remove('hidden');
   
-  // Update panorama
-  viewer.loadScene('default', undefined, undefined, undefined, () => {
-    // Panorama loaded
-    elements.loading.classList.add('hidden');
-  });
+  // Get heading (saved adjustment or auto-bearing)
+  const heading = getPhotoHeading(photo, index);
   
   // Set new panorama
   const imagePath = `../photos/output/${photo.path}`;
@@ -478,8 +585,8 @@ function loadPhoto(index) {
     showFullscreenCtrl: false,
     showZoomCtrl: false,
     friction: 0.15,
-    yaw: 0,
-    pitch: 0
+    yaw: heading.yaw,
+    pitch: heading.pitch
   });
   
   viewer.on('load', () => {
@@ -514,6 +621,11 @@ function loadPhoto(index) {
   
   // Update active marker
   updateActiveMarker(index);
+  
+  // Update edit panel if in edit mode
+  if (editMode) {
+    updateEditPanel();
+  }
 }
 
 // ========================================
@@ -573,10 +685,18 @@ function initControls() {
   
   // Keyboard navigation
   document.addEventListener('keydown', (e) => {
+    // Don't handle keys if typing in an input
+    if (e.target.tagName === 'INPUT') return;
+    
     if (e.key === 'ArrowLeft' || e.key === 'a') {
       loadPhoto(currentIndex - 1);
     } else if (e.key === 'ArrowRight' || e.key === 'd') {
       loadPhoto(currentIndex + 1);
+    } else if (e.key === 'e' || e.key === 'E') {
+      toggleEditMode();
+    } else if (e.key === 's' && editMode && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      saveCurrentHeading();
     }
   });
   
@@ -755,6 +875,268 @@ function updateSplitLayout() {
     if (map) map.resize();
     if (viewer) viewer.resize();
   }, 0);
+}
+
+// ========================================
+// Edit Mode
+// ========================================
+function initEditMode() {
+  // Create edit panel HTML
+  const editPanelHTML = `
+    <div class="edit-panel" id="edit-panel">
+      <div class="edit-header">
+        <div class="edit-title">Adjust Heading</div>
+        <div class="edit-hint">Press E to toggle edit mode</div>
+      </div>
+      <div class="edit-content">
+        <div class="edit-row">
+          <label>GPS Bearing:</label>
+          <span id="edit-auto-bearing">0°</span>
+          <span class="edit-hint-inline">(reference)</span>
+        </div>
+        <div class="edit-row">
+          <label>Yaw (horizontal):</label>
+          <input type="number" id="edit-yaw" step="1" min="-180" max="360">
+          <span class="edit-unit">°</span>
+        </div>
+        <div class="edit-row">
+          <label>Pitch (vertical):</label>
+          <input type="number" id="edit-pitch" step="1" min="-90" max="90">
+          <span class="edit-unit">°</span>
+        </div>
+        <div class="edit-row edit-grid-toggle">
+          <label for="edit-grid-checkbox">Show grid:</label>
+          <input type="checkbox" id="edit-grid-checkbox">
+          <span class="edit-hint-inline">Helps with alignment</span>
+        </div>
+        <div class="edit-row edit-status" id="edit-status">
+          <span class="status-dot"></span>
+          <span class="status-text">Using auto-bearing</span>
+        </div>
+        <div class="edit-buttons">
+          <button class="edit-btn edit-btn-primary" id="edit-save-btn">
+            Save (Cmd+S)
+          </button>
+          <button class="edit-btn edit-btn-secondary" id="edit-use-current-btn">
+            Use Current View
+          </button>
+          <button class="edit-btn edit-btn-secondary" id="edit-reset-btn">
+            Reset to Auto
+          </button>
+        </div>
+        <div class="edit-export">
+          <button class="edit-btn edit-btn-export" id="edit-export-btn">
+            Export All Adjustments
+          </button>
+          <span class="edit-export-count" id="edit-export-count"></span>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Insert edit panel into DOM
+  document.querySelector('.viewer-container').insertAdjacentHTML('beforeend', editPanelHTML);
+  
+  // Get element references
+  elements.editPanel = document.getElementById('edit-panel');
+  elements.editYaw = document.getElementById('edit-yaw');
+  elements.editPitch = document.getElementById('edit-pitch');
+  elements.editAutoBearing = document.getElementById('edit-auto-bearing');
+  elements.editSaveBtn = document.getElementById('edit-save-btn');
+  elements.editResetBtn = document.getElementById('edit-reset-btn');
+  elements.editUseCurrentBtn = document.getElementById('edit-use-current-btn');
+  elements.editExportBtn = document.getElementById('edit-export-btn');
+  elements.editStatus = document.getElementById('edit-status');
+  elements.editExportCount = document.getElementById('edit-export-count');
+  
+  // Create grid overlay
+  const gridOverlay = document.createElement('div');
+  gridOverlay.className = 'grid-overlay';
+  gridOverlay.id = 'grid-overlay';
+  gridOverlay.innerHTML = `
+    <div class="grid-pattern"></div>
+    <div class="grid-center-h"></div>
+    <div class="grid-center-v"></div>
+    <div class="grid-crosshair"></div>
+  `;
+  document.querySelector('.panorama-container').appendChild(gridOverlay);
+  elements.gridOverlay = gridOverlay;
+  elements.editGridCheckbox = document.getElementById('edit-grid-checkbox');
+  
+  // Set up event listeners
+  elements.editSaveBtn.addEventListener('click', saveCurrentHeading);
+  elements.editResetBtn.addEventListener('click', resetCurrentHeading);
+  elements.editUseCurrentBtn.addEventListener('click', useCurrentView);
+  elements.editExportBtn.addEventListener('click', exportAdjustments);
+  elements.editGridCheckbox.addEventListener('change', toggleGrid);
+  
+  // Apply heading when input changes
+  elements.editYaw.addEventListener('input', applyEditedHeading);
+  elements.editPitch.addEventListener('input', applyEditedHeading);
+  
+  // Update export count
+  updateExportCount();
+}
+
+function toggleEditMode() {
+  editMode = !editMode;
+  elements.editPanel.classList.toggle('visible', editMode);
+  
+  if (editMode) {
+    updateEditPanel();
+  } else {
+    // Hide grid when exiting edit mode
+    if (elements.gridOverlay) {
+      elements.gridOverlay.classList.remove('visible');
+    }
+    if (elements.editGridCheckbox) {
+      elements.editGridCheckbox.checked = false;
+    }
+  }
+  
+  console.log(`Edit mode: ${editMode ? 'ON' : 'OFF'}`);
+}
+
+function toggleGrid() {
+  const showGrid = elements.editGridCheckbox.checked;
+  elements.gridOverlay.classList.toggle('visible', showGrid);
+}
+
+function updateEditPanel() {
+  if (!elements.editPanel) return;
+  
+  const photo = photos[currentIndex];
+  const autoBearing = photoBearings[currentIndex] || 0;
+  const heading = getPhotoHeading(photo, currentIndex);
+  
+  // Update GPS bearing display (for reference)
+  elements.editAutoBearing.textContent = `${autoBearing.toFixed(1)}°`;
+  
+  // Update input values
+  elements.editYaw.value = heading.yaw.toFixed(1);
+  elements.editPitch.value = heading.pitch.toFixed(1);
+  
+  // Update status based on source
+  const statusText = elements.editStatus.querySelector('.status-text');
+  if (heading.source === 'local') {
+    elements.editStatus.classList.add('has-custom');
+    elements.editStatus.classList.remove('has-index');
+    statusText.textContent = 'Local edit (not exported)';
+  } else if (heading.source === 'index') {
+    elements.editStatus.classList.add('has-custom');
+    elements.editStatus.classList.add('has-index');
+    statusText.textContent = 'Saved in index.json';
+  } else {
+    elements.editStatus.classList.remove('has-custom');
+    elements.editStatus.classList.remove('has-index');
+    statusText.textContent = 'Using default (center)';
+  }
+  
+  updateExportCount();
+}
+
+function applyEditedHeading() {
+  const yaw = parseFloat(elements.editYaw.value) || 0;
+  const pitch = parseFloat(elements.editPitch.value) || 0;
+  
+  // Apply to current viewer
+  viewer.setYaw(yaw);
+  viewer.setPitch(pitch);
+}
+
+function useCurrentView() {
+  // Get current viewer yaw/pitch and put into inputs
+  const currentYaw = viewer.getYaw();
+  const currentPitch = viewer.getPitch();
+  
+  elements.editYaw.value = currentYaw.toFixed(1);
+  elements.editPitch.value = currentPitch.toFixed(1);
+}
+
+function saveCurrentHeading() {
+  const photo = photos[currentIndex];
+  const yaw = parseFloat(elements.editYaw.value) || 0;
+  const pitch = parseFloat(elements.editPitch.value) || 0;
+  
+  // Save adjustment
+  headingAdjustments[photo.path] = { yaw, pitch };
+  saveHeadingAdjustments();
+  
+  // Update UI
+  updateEditPanel();
+  
+  // Show feedback
+  showEditFeedback('Saved!');
+}
+
+function resetCurrentHeading() {
+  const photo = photos[currentIndex];
+  
+  // Remove local adjustment
+  delete headingAdjustments[photo.path];
+  saveHeadingAdjustments();
+  
+  // Note: This only clears local edits. To clear index.json heading,
+  // run: python scripts/import_heading_adjustments.py --clear
+  
+  // Reload photo
+  loadPhoto(currentIndex);
+  
+  // Update UI
+  updateEditPanel();
+  
+  // Show feedback
+  const hasIndexHeading = photo.yaw !== undefined || photo.pitch !== undefined;
+  showEditFeedback(hasIndexHeading ? 'Reset to index value' : 'Reset to default');
+}
+
+function showEditFeedback(message) {
+  const statusText = elements.editStatus.querySelector('.status-text');
+  const originalText = statusText.textContent;
+  
+  statusText.textContent = message;
+  statusText.classList.add('feedback');
+  
+  setTimeout(() => {
+    statusText.classList.remove('feedback');
+    updateEditPanel(); // Restore proper status
+  }, 1500);
+}
+
+function updateExportCount() {
+  const localCount = Object.keys(headingAdjustments).length;
+  if (elements.editExportCount) {
+    elements.editExportCount.textContent = localCount > 0 ? `(${localCount} local edits)` : '(no local edits)';
+  }
+}
+
+function exportAdjustments() {
+  const count = Object.keys(headingAdjustments).length;
+  
+  if (count === 0) {
+    alert('No heading adjustments to export.');
+    return;
+  }
+  
+  // Create export data
+  const exportData = {
+    exported: new Date().toISOString(),
+    count: count,
+    adjustments: headingAdjustments
+  };
+  
+  // Create download
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `heading-adjustments-${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  showEditFeedback(`Exported ${count} adjustments`);
 }
 
 // ========================================
