@@ -79,13 +79,18 @@ def import_adjustments(adjustments_path: Path, dry_run: bool = False) -> None:
             idx = path_to_idx[path]
             yaw = adj.get('yaw', 0)
             pitch = adj.get('pitch', 0)
+            roll = adj.get('roll', 0)
             
             if not dry_run:
                 photos[idx]['yaw'] = round(yaw, 2)
                 photos[idx]['pitch'] = round(pitch, 2)
+                if roll != 0:
+                    photos[idx]['roll'] = round(roll, 2)
+                elif 'roll' in photos[idx]:
+                    del photos[idx]['roll']  # Remove roll if it's 0
             
             print(f"  ✓ {path}")
-            print(f"    yaw: {yaw:.1f}°, pitch: {pitch:.1f}°")
+            print(f"    yaw: {yaw:.1f}°, pitch: {pitch:.1f}°, roll: {roll:.1f}°")
             updated += 1
         else:
             print(f"  ✗ Not found: {path}")
@@ -120,10 +125,11 @@ def clear_adjustments(dry_run: bool = False) -> None:
     
     cleared = 0
     for photo in photos:
-        if 'yaw' in photo or 'pitch' in photo:
+        if 'yaw' in photo or 'pitch' in photo or 'roll' in photo:
             if not dry_run:
                 photo.pop('yaw', None)
                 photo.pop('pitch', None)
+                photo.pop('roll', None)
             cleared += 1
     
     print(f"Cleared adjustments from: {cleared} photos")

@@ -55,6 +55,7 @@ python scripts/delete_photos.py IMG_20251209_133130_406_414_INTERVAL
 
 python scripts/delete_photos.py IMG_20251209_125427_312_313_INTERVAL
 python scripts/delete_photos.py IMG_20251209_150417_604_608_INTERVAL
+python scripts/delete_photos.py IMG_20251211_113416_608_608_INTERVAL
 
 
 # Delete multiple folders
@@ -77,6 +78,8 @@ Deletes individual photos by filename and automatically re-matches GPX data for 
 ```bash
 # Delete one or more individual photos by filename
 python scripts/delete_individual_photos.py IMG_20251209_144524_00_554.jpg
+
+python scripts/delete_individual_photos.py IMG_20251209_130548_00_355.jpg
 
 # Delete multiple photos at once
 python scripts/delete_individual_photos.py IMG_20251209_144524_00_554.jpg IMG_20251209_144525_00_555.jpg IMG_20251209_144526_00_556.jpg
@@ -266,6 +269,23 @@ Export photo GPS coordinates to GeoJSON for snapping in QGIS, then import the sn
   - GPS coordinates in `data/index.json`
 
 **Note:** The `photo_id` property in the GeoJSON is used to match photos back. Make sure not to modify this property when working in QGIS.
+
+### `clean_photos_output.py`
+Removes clutter from `photos/output/`: deletes all `.backup` files and any files or folders not referenced in `data/index.json` (i.e. not used by the web app). Also removes empty directories.
+
+**Usage:**
+```bash
+# Preview what would be deleted (dry run)
+python scripts/clean_photos_output.py
+
+# Actually delete
+python scripts/clean_photos_output.py --execute
+```
+
+**What it does:**
+- Deletes every `*.backup` file under `photos/output/`
+- Deletes any file whose path is not in `data/index.json` → `photos[]` → `path`
+- Removes empty directories
 
 ## Auto-Update Workflow
 

@@ -37,9 +37,11 @@
       </div>
     </header>
 
-    <!-- Panorama viewer -->
+    <!-- Panorama viewer (dual containers for smooth transitions) -->
     <div class="panorama-container">
-      <div id="panorama"></div>
+      <div class="panorama-layer panorama-active" id="panorama-a"></div>
+      <div class="panorama-layer" id="panorama-b"></div>
+      <div class="transition-overlay" id="transition-overlay"></div>
     </div>
 
     <!-- Minimap -->
@@ -68,6 +70,11 @@
           <path d="M15 18l-6-6 6-6"/>
         </svg>
       </button>
+      
+      <span class="nav-counter" id="nav-counter">
+        <input type="number" class="nav-counter-input" id="nav-counter-input" min="1" value="1" aria-label="Current photo">
+        <span class="nav-counter-total" id="nav-counter-total">/ 1</span>
+      </span>
       
       <button class="nav-button" id="next-btn" title="Next photo">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
